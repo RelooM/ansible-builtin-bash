@@ -64,20 +64,26 @@ Or set `ANSIBLE_LIBRARY=./library` before running your playbook.
 
 ## Sudo & Privilege Escalation
 
-The `dnf.sh` module is designed for environments with fine-grained sudo policies. Use Ansible's `become` directives:
+The `dnf.sh` module handles privilege escalation **internally** — no Ansible `become` needed. When running as a non-root user, it automatically prefixes `dnf` commands with `sudo -n`, leveraging whatever fine-grained sudoers rules are in place.
+
+This is the key architectural difference vs. Ansible's built-in `dnf` module: the module itself escalates only the specific package manager commands, not the entire task.
 
 ```yaml
 - hosts: all
-  become: yes
-  become_user: root
+  # No become required — dnf.sh calls sudo internally
   tasks:
-    - name: Install packages as privileged user
+    - name: Install packages using sudoers-granted permissions
       dnf:
         name: httpd
         state: present
 ```
 
-Because the module calls `dnf` directly (not through `sudo` internally), it respects whatever privilege model Ansible has configured — `become`, `become_user`, `become_method`, and any sudoers restrictions on the target. This makes it suitable for environments where specific users have limited sudo access to `dnf` only.
+The `use_sudo` parameter controls this behavior:
+- **`auto`** (default) — uses `sudo -n` when running as non-root, bare `dnf` when root
+- **`true`** — always uses `sudo -n`
+- **`false`** — never uses sudo
+
+See [`library/dnf.md`](library/dnf.md) for detailed sudoers configuration examples.
 
 ## Available Modules
 

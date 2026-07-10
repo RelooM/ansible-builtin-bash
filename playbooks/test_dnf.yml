@@ -19,6 +19,7 @@
     ansible_shell_type: cmd
     ansible_shell_executable: /bin/bash
     # Module path is set via --module-path CLI arg or ANSIBLE_LIBRARY env
+    # No become needed — dnf.sh calls sudo -n internally when non-root
 
   tasks:
     - name: 1.1 Install a package (curl)

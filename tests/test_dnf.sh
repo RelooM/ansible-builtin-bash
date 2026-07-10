@@ -119,7 +119,11 @@ test_case "state=installed (alias for present)"   "true" name=curl state=install
 test_case "state=removed (alias for absent)"      "false" name=curl state=removed
 
 echo
-echo "--- Additional features ---"
+echo "--- Sudo mode ---"
+test_case "use_sudo=false (explicit no sudo)"      "true" name=curl state=present use_sudo=false
+test_case "use_sudo=true (explicit sudo)"          "true" name=curl state=present use_sudo=true
+test_case "use_sudo=auto (root, no sudo)"           "true" name=curl state=present use_sudo=auto
+test_case "state=present with use_sudo + enablerepo" "true" name=curl state=present use_sudo=false enablerepo=epel
 test_case "Autoremove only (no name)"             "true" autoremove=true
 test_case "With update_cache"                     "true" name=curl state=present update_cache=true
 test_case "With enablerepo + disablerepo"          "true" name=curl state=present enablerepo=epel disablerepo=appstream

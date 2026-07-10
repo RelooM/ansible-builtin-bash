@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ansible-module: dnf
-# description: Manages packages with the dnf package manager — pure Bash, sudo-compatible.
-#   Mirrors ansible.builtin.dnf with the most commonly used parameters.
+# description: Manages packages with the dnf package manager — pure Bash.
+#   Calls sudo -n internally when running as non-root, respecting fine-grained
+#   sudoers policies. No reliance on Ansible's become system.
 # options:
 #   name:
 #     description: A package name or package specifier with version (name-1.0), a URL, or local path to an RPM.
@@ -143,11 +144,12 @@
 #     required: false
 #     type: str
 #     default: "auto"
-#   installroot:
-#     description: Alternative install root.
+#   use_sudo:
+#     description: Whether to prefix dnf commands with sudo. auto=true if not root.
 #     required: false
 #     type: str
-#     default: "/"
+#     default: "auto"
+#     choices: ["auto", true, false]
 
 # STRICT MODE
 set -euo pipefail
@@ -181,6 +183,7 @@ sslverify=true
 install_weak_deps=true
 lock_timeout=30
 use_backend="auto"
+use_sudo="auto"
 names=()
 enablerepos=()
 disablerepos=()
@@ -245,7 +248,6 @@ jq_safe() {
   # Escape backslashes, newlines, tabs, and double-quotes
   s="${s//\\/\\\\}"
   s="${s//\"/\\\"}"
-  # Use printf to handle newlines
   printf '"%s"' "$s"
 }
 
@@ -254,41 +256,71 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
-# ---- Helper: detect available dnf backend ----
-detect_backend() {
+# ---- Helper: detect available dnf backend and sudo prefix ----
+# Sets global DNF_BIN and SUDO_PREFIX
+detect_backend_and_sudo() {
+  local backend=""
+
   case "$use_backend" in
     dnf5)
       if command_exists dnf5; then
-        echo "dnf5"
-        return
+        backend="dnf5"
+      else
+        FAILED=true
+        MSG="Requested backend 'dnf5' but dnf5 is not installed on the target system."
+        emit_result
       fi
-      FAILED=true
-      MSG="Requested backend 'dnf5' but dnf5 is not installed on the target system."
-      emit_result
       ;;
     dnf4|dnf)
       if command_exists dnf; then
-        echo "dnf"
-        return
+        backend="dnf"
+      else
+        FAILED=true
+        MSG="Requested backend 'dnf' but dnf is not installed on the target system."
+        emit_result
       fi
-      FAILED=true
-      MSG="Requested backend 'dnf' but dnf is not installed on the target system."
-      emit_result
       ;;
     auto|*)
       if command_exists dnf5; then
-        echo "dnf5"
+        backend="dnf5"
       elif command_exists dnf; then
-        echo "dnf"
+        backend="dnf"
       else
-        # Fallback to dnf if neither is found — let the command itself error
-        echo "dnf"
+        # Don't fail here — let the command itself error if neither is found
+        backend="dnf"
       fi
       ;;
   esac
+
+  # Determine sudo prefix
+  SUDO_PREFIX=""
+  if [ "$use_sudo" = "auto" ]; then
+    if [ "$(id -u)" -ne 0 ]; then
+      # Running as non-root — need sudo for dnf commands
+      if command_exists sudo; then
+        SUDO_PREFIX="sudo -n"
+      else
+        FAILED=true
+        MSG="Running as non-root but sudo is not available. Install sudo or set 'use_sudo=false' if running as root."
+        emit_result
+      fi
+    fi
+  elif [ "$use_sudo" = "true" ]; then
+    if command_exists sudo; then
+      SUDO_PREFIX="sudo -n"
+    else
+      FAILED=true
+      MSG="use_sudo=true but sudo is not installed on the target system."
+      emit_result
+    fi
+  fi
+  # use_sudo=false → SUDO_PREFIX stays empty
+
+  DNF_BIN="$backend"
 }
 
 # ---- Helper: run dnf and capture output ----
+# Builds the full command using SUDO_PREFIX and DNF_BIN
 run_dnf() {
   local cmd="$1"
   shift
@@ -296,6 +328,13 @@ run_dnf() {
 
   # Start building the argument array
   local dnf_args=()
+
+  # If we have a sudo prefix, add it as individual words
+  if [ -n "$SUDO_PREFIX" ]; then
+    # shellcheck disable=SC2086
+    dnf_args+=($SUDO_PREFIX)
+  fi
+
   dnf_args+=("${DNF_BIN}" "-y")
 
   # Global flags
@@ -340,20 +379,12 @@ run_dnf() {
 
   # Weak dependencies
   if [ "$install_weak_deps" = false ]; then
-    if command -v dnf5 >/dev/null && [ "$("$DNF_BIN" --version 2>/dev/null | head -1 | grep -c 'dnf5')" -gt 0 ]; then
-      dnf_args+=("--no-weak-deps")
-    else
-      dnf_args+=("--setopt=install_weak_deps=False")
-    fi
+    dnf_args+=("--setopt=install_weak_deps=False")
   fi
 
   # Allow downgrade
   if [ "$allow_downgrade" = true ]; then
-    if command -v dnf5 >/dev/null && [ "$("$DNF_BIN" --version 2>/dev/null | head -1 | grep -c 'dnf5')" -gt 0 ]; then
-      dnf_args+=("--allow-downgrade")
-    else
-      dnf_args+=("--setopt=allow_downgrade=True")
-    fi
+    dnf_args+=("--setopt=allow_downgrade=True")
   fi
 
   # Repo management
@@ -393,7 +424,7 @@ run_dnf() {
   # Extra positional args (packages, groups)
   dnf_args+=("${extra_args[@]}")
 
-  # Run dnf — allow failure so we can capture return code
+  # Run — allow failure so we can capture return code
   set +e
   local tmp_stderr
   tmp_stderr=$(mktemp)
@@ -413,10 +444,35 @@ run_dnf() {
   echo "$rc"
 }
 
+# ---- Helper: run dnf for a read-only query (no sudo needed on most systems) ----
+# Uses sudo only if SUDO_PREFIX is set, but caller can force no-sudo with check_only=true
+run_dnf_query() {
+  local cmd="$1"
+  shift
+  local extra_args=("$@")
+
+  local q_args=()
+
+  # Only use sudo for queries if we need it
+  if [ -n "$SUDO_PREFIX" ]; then
+    # shellcheck disable=SC2086
+    q_args+=($SUDO_PREFIX)
+  fi
+
+  q_args+=("${DNF_BIN}" "$cmd")
+  q_args+=("${extra_args[@]}")
+
+  set +e
+  "${q_args[@]}" 2>/dev/null
+  local rc=$?
+  set -e
+  return $rc
+}
+
 # ---- Check if a package is installed ----
 package_installed() {
   local pkg="$1"
-  if "$DNF_BIN" list installed "$pkg" >/dev/null 2>&1; then
+  if run_dnf_query "list" "installed" "$pkg"; then
     return 0
   fi
   return 1
@@ -425,7 +481,7 @@ package_installed() {
 # ---- Check if package is available (not installed) ----
 package_available() {
   local pkg="$1"
-  if "$DNF_BIN" list available "$pkg" >/dev/null 2>&1; then
+  if run_dnf_query "list" "available" "$pkg"; then
     return 0
   fi
   return 1
@@ -445,17 +501,15 @@ is_group() {
 # ---- List mode (ansible.builtin.dnf list parameter) ----
 handle_list() {
   local arg="$1"
-  local output
   local rc
 
+  # run_dnf sets global STDOUT/STDERR as side effect and echoes rc
   case "$arg" in
     available|updates|upgrades|installed|extras|obsoletes|recent)
       set +e
-      STDOUT=$( "$DNF_BIN" list "$arg" 2>/dev/null )
-      rc=$?
-      STDERR=$( "$DNF_BIN" list "$arg" 2>&1 1>/dev/null )
+      rc=$( run_dnf "list" "$arg" 2>/dev/null )
       set -e
-      if [ $rc -ne 0 ]; then
+      if [ "$rc" -ne 0 ]; then
         FAILED=true
         MSG="Failed to list $arg: $STDERR"
         emit_result
@@ -467,12 +521,9 @@ handle_list() {
     *)
       # When arg looks like a package name, run list <pkg>
       set +e
-      STDOUT=$( "$DNF_BIN" list "$arg" 2>/dev/null )
-      rc=$?
-      STDERR=$( "$DNF_BIN" list "$arg" 2>&1 1>/dev/null )
+      rc=$( run_dnf "list" "$arg" 2>/dev/null )
       set -e
-      if [ $rc -ne 0 ]; then
-        # Package not found — not necessarily a failure
+      if [ "$rc" -ne 0 ]; then
         MSG="Package '$arg' not found"
         RESULTS+=("Package '$arg' not found via list")
         emit_result
@@ -502,11 +553,10 @@ for arg in "$@"; do
 
   case "$key" in
     name|pkg)
-      # Split comma-separated values into array
       IFS=',' read -ra parts <<< "$val"
       for part in "${parts[@]}"; do
-        part="${part## }"  # trim leading space
-        part="${part%% }"  # trim trailing space
+        part="${part## }"
+        part="${part%% }"
         [ -n "$part" ] && names+=("$part")
       done
       ;;
@@ -620,7 +670,6 @@ for arg in "$@"; do
         0|no|false|False|FALSE) validate_certs=false ;;
         *) validate_certs=true ;;
       esac
-      # validate_certs maps to --nogpgcheck for HTTPS sources
       if [ "$validate_certs" = false ]; then
         disable_gpg_check=true
       fi
@@ -671,15 +720,17 @@ for arg in "$@"; do
     use_backend)
       use_backend="$val"
       ;;
+    use_sudo)
+      use_sudo="$val"
+      ;;
     *)
-      # Unknown parameter — warn but continue
       MSG="${MSG}Unknown parameter: $key; "
       ;;
   esac
 done
 
-# ---- Detect dnf binary ----
-DNF_BIN=$(detect_backend)
+# ---- Detect dnf binary and sudo prefix ----
+detect_backend_and_sudo
 
 # ---- List mode (short-circuits) ----
 if [ -n "$list_mode" ]; then
@@ -727,14 +778,13 @@ fi
 
 # ---- Resolve "state=latest" with update_only ----
 if [ "$state" = "latest" ] && [ "$update_only" = true ]; then
-  # Only upgrade installed packages, skip new installs
   state="latest_update_only"
 fi
 
 # ---- Update cache if requested ----
 if [ "$update_cache" = true ]; then
   set +e
-  "$DNF_BIN" makecache 2>/dev/null
+  run_dnf "makecache" >/dev/null 2>&1
   cache_rc=$?
   set -e
   if [ "$cache_rc" -ne 0 ]; then
@@ -754,7 +804,6 @@ for pkg_spec in "${names[@]}"; do
   # Detect group
   if is_group "$pkg_spec"; then
     is_group_name=true
-    # Strip leading @ or group: prefix
     pkg="${pkg_spec#@}"
     pkg="${pkg#group:}"
     pkg_name="$pkg_spec"
@@ -762,18 +811,15 @@ for pkg_spec in "${names[@]}"; do
 
   case "$state" in
     present)
-      # state=present: install if not already installed
       if [ "$is_group_name" = true ]; then
-        # Check if group is installed
         set +e
-        "$DNF_BIN" group list installed "$pkg" >/dev/null 2>&1
+        run_dnf "group" "list" "installed" "$pkg" >/dev/null 2>&1
         installed_rc=$?
         set -e
         if [ "$installed_rc" -eq 0 ]; then
           RESULTS+=("Group '$pkg_spec' is already installed — no change")
           continue
         fi
-        # Install group
         rc=$(run_dnf "groupinstall" "$pkg")
         if [ "$rc" -eq 0 ]; then
           CHANGED=true
@@ -784,9 +830,7 @@ for pkg_spec in "${names[@]}"; do
           emit_result
         fi
       else
-        # Handle version comparison operators
         if echo "$pkg_spec" | grep -qE '(>=?|<=?|==)'; then
-          # The full spec including operator is passed to dnf
           rc=$(run_dnf "install" "$pkg_spec")
         elif package_installed "$pkg"; then
           RESULTS+=("Package '$pkg' is already installed — no change")
@@ -807,7 +851,6 @@ for pkg_spec in "${names[@]}"; do
       ;;
 
     latest)
-      # state=latest: update to newest version (install if missing)
       if [ "$is_group_name" = true ]; then
         rc=$(run_dnf "groupupdate" "$pkg")
         if [ "$rc" -eq 0 ]; then
@@ -820,7 +863,6 @@ for pkg_spec in "${names[@]}"; do
         fi
       else
         if [ "$pkg_spec" = "*" ]; then
-          # Upgrade all packages
           rc=$(run_dnf "update")
           if [ "$rc" -eq 0 ]; then
             CHANGED=true
@@ -845,10 +887,9 @@ for pkg_spec in "${names[@]}"; do
       ;;
 
     latest_update_only)
-      # Only update already-installed packages
       if [ "$is_group_name" = true ]; then
         set +e
-        "$DNF_BIN" group list installed "$pkg" >/dev/null 2>&1
+        run_dnf "group" "list" "installed" "$pkg" >/dev/null 2>&1
         grp_rc=$?
         set -e
         if [ "$grp_rc" -ne 0 ]; then
@@ -874,10 +915,9 @@ for pkg_spec in "${names[@]}"; do
       ;;
 
     absent)
-      # state=absent: remove package
       if [ "$is_group_name" = true ]; then
         set +e
-        "$DNF_BIN" group list installed "$pkg" >/dev/null 2>&1
+        run_dnf "group" "list" "installed" "$pkg" >/dev/null 2>&1
         g_rc=$?
         set -e
         if [ "$g_rc" -ne 0 ]; then
@@ -911,7 +951,6 @@ for pkg_spec in "${names[@]}"; do
       ;;
 
     default)
-      # Should not reach here
       FAILED=true
       MSG="Internal error: unhandled state '$state'"
       emit_result

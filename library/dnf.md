@@ -66,6 +66,7 @@ A pure Bash replacement for `ansible.builtin.dnf` designed for environments with
 | `exclude` | list/str | — | Packages to exclude |
 | `lock_timeout` | int | `30` | Lock wait timeout (seconds) |
 | `use_backend` | str | `auto` | `auto` / `dnf` / `dnf4` / `dnf5` |
+| `use_sudo` | str/bool | `auto` | `auto` (auto-detect: sudo if non-root), `true` (always), `false` (never) |
 | `list` | str | — | Non-idempotent list commands |
 
 ## Output
@@ -100,17 +101,33 @@ Return values:
 
 ## Sudo / Privilege Escalation
 
-This module never invokes `sudo` internally. It relies on **Ansible's `become` system** for privilege escalation. This means:
+This module handles privilege escalation **internally** — it calls `sudo -n` before every `dnf` command when running as a non-root user. This is the key design difference vs. Ansible's built-in `dnf` module:
 
-- ✅ Fine-grained sudoers policies work (`myuser ALL=(root) /usr/bin/dnf install *`)
-- ✅ Works with any `become_method` (sudo, su, doas, etc.)
-- ✅ No embedded password or sudo handling in the module
-- ✅ Compatible with Ansible Tower/AWX/CPM privilege models
+- ✅ **No `become` required** — the playbook runs as the regular user, and the module escalates only the specific `dnf` commands via sudo
+- ✅ **Fine-grained sudoers policies work** — e.g. `deploy ALL=(root) NOPASSWD: /usr/bin/dnf install *, /usr/bin/dnf remove *`
+- ✅ **Non-root users** can run package management with limited, auditable permissions
+- ✅ **No password prompts** — uses `sudo -n` (non-interactive), so the user must have NOPASSWD in sudoers
 
-Usage:
+### `use_sudo` parameter
+
+| Value | Behavior |
+|---|---|
+| `auto` (default) | Automatically detects: uses `sudo -n` if running as non-root, bare dnf if running as root |
+| `true` | Always use `sudo -n`, even if already root |
+| `false` | Never use sudo — run dnf directly |
+
+### Example sudoers configuration
+
+```sudo
+# Allow deploy user to manage packages without full root access
+deploy ALL=(root) NOPASSWD: /usr/bin/dnf install *, /usr/bin/dnf remove *, /usr/bin/dnf update *, /usr/bin/dnf list *, /usr/bin/dnf makecache
+```
+
+### Playbook usage (no become)
+
 ```yaml
 - hosts: all
-  become: yes
+  # No become: yes  ← not needed!
   tasks:
     - name: Install package
       dnf:

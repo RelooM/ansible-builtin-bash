@@ -4,7 +4,6 @@
 #   ansible-playbook -i inventory playbooks/example_usage.yml --module-path library
 - name: Install common developer tools
   hosts: all
-  become: yes
   gather_facts: true
 
   vars:
