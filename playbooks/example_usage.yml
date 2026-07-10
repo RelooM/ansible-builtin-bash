@@ -1,5 +1,5 @@
 ---
-# Example: Install common dev tools using dnf.sh
+# Example: Install common dev tools using bash.dnf.sh
 # Run with:
 #   ansible-playbook -i inventory playbooks/example_usage.yml --module-path library
 - name: Install common developer tools
@@ -21,7 +21,7 @@
 
   tasks:
     - name: Ensure all dev packages are present
-      dnf:
+      bash.dnf:
         name: "{{ dev_packages }}"
         state: present
         update_cache: true
@@ -32,7 +32,7 @@
         msg: "Installed {{ dev_packages | length }} packages — changed={{ install_result.changed }}"
 
     - name: Install a specific version with EPEL
-      dnf:
+      bash.dnf:
         name: neovim
         state: latest
         enablerepo: epel
@@ -41,7 +41,7 @@
       ignore_errors: true
 
     - name: Security updates only
-      dnf:
+      bash.dnf:
         name: "*"
         state: latest
         security: true
@@ -53,7 +53,7 @@
         msg: "Security updates applied: {{ security_updates.changed | default(false) }}"
 
     - name: Remove packages no longer needed
-      dnf:
+      bash.dnf:
         autoremove: true
       register: autoremove_result
 

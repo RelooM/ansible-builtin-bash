@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test dnf.sh module — validates argument parsing, JSON output, state dispatch shape.
+# Test bash.dnf.sh module — validates argument parsing, JSON output, state dispatch shape.
 # Note: actual dnf calls will fail in this environment (no dnf installed).
 # We test the module contract:
 #   1. Always valid JSON
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-DNF_MODULE="./library/dnf.sh"
+DNF_MODULE="./library/bash.dnf.sh"
 
 PASS="✓"
 FAIL="✗"
@@ -71,7 +71,7 @@ print('OK')
 }
 
 # ============================================================
-echo "=== dnf.sh Module Tests ==="
+echo "=== bash.dnf.sh Module Tests ==="
 echo
 
 echo "--- Validation: argument parsing errors ---"

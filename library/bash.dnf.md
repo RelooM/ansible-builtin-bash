@@ -1,10 +1,19 @@
-# dnf.sh — Bash DNF Module
+# bash.dnf.sh — Bash DNF Module (callable as `bash.dnf:`)
 
 ## Overview
 
-A pure Bash replacement for `ansible.builtin.dnf` designed for environments with fine-grained sudo policies. Mirrors the full parameter surface of the original Python module.
+A pure Bash replacement for `ansible.builtin.dnf` — callable as **`bash.dnf:`** in Ansible playbooks. Designed for environments with fine-grained sudo policies. Mirrors the full parameter surface of the original Python module.
 
-## Supported Parameters
+## Usage
+
+```yaml
+- hosts: all
+  tasks:
+    - name: Install package
+      bash.dnf:
+        name: httpd
+        state: present
+```
 
 ### Core
 | Parameter | Type | Default | Description |
@@ -130,7 +139,7 @@ deploy ALL=(root) NOPASSWD: /usr/bin/dnf install *, /usr/bin/dnf remove *, /usr/
   # No become: yes  ← not needed!
   tasks:
     - name: Install package
-      dnf:
+      bash.dnf:
         name: httpd
         state: present
 ```

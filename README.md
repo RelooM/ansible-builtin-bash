@@ -46,34 +46,36 @@ The `changed` key is the minimum requirement. All other keys are optional but re
 
 ## Usage with Ansible
 
-Add the `library/` directory to your Ansible module path and reference modules by name:
+To use a module in your playbook, reference it by the FQCN-style name matching its filename:
 
 ```yaml
 - hosts: all
-  vars:
-    ansible_shell_type: cmd
-    ansible_shell_executable: /bin/bash
   tasks:
-    - name: Run a bash-powered module
-      my_bash_module:
-        param1: value1
-        param2: value2
+    - name: Install a package
+      bash.dnf:
+        name: curl
+        state: present
+```
+
+Run with:
+```bash
+ansible-playbook -i inventory playbook.yml --module-path library
 ```
 
 Or set `ANSIBLE_LIBRARY=./library` before running your playbook.
 
 ## Sudo & Privilege Escalation
 
-The `dnf.sh` module handles privilege escalation **internally** — no Ansible `become` needed. When running as a non-root user, it automatically prefixes `dnf` commands with `sudo -n`, leveraging whatever fine-grained sudoers rules are in place.
+The `bash.dnf.sh` module handles privilege escalation **internally** — no Ansible `become` needed. When running as a non-root user, it automatically prefixes `dnf` commands with `sudo -n`, leveraging whatever fine-grained sudoers rules are in place.
 
 This is the key architectural difference vs. Ansible's built-in `dnf` module: the module itself escalates only the specific package manager commands, not the entire task.
 
 ```yaml
 - hosts: all
-  # No become required — dnf.sh calls sudo internally
+  # No become required — bash.dnf.sh calls sudo internally
   tasks:
     - name: Install packages using sudoers-granted permissions
-      dnf:
+      bash.dnf:
         name: httpd
         state: present
 ```
@@ -83,13 +85,13 @@ The `use_sudo` parameter controls this behavior:
 - **`true`** — always uses `sudo -n`
 - **`false`** — never uses sudo
 
-See [`library/dnf.md`](library/dnf.md) for detailed sudoers configuration examples.
+See [`library/bash.dnf.md`](library/bash.dnf.md) for detailed sudoers configuration examples.
 
 ## Available Modules
 
 | Module | Description |
 |---|---|
-| `dnf.sh` | Full replacement for `ansible.builtin.dnf` — pure Bash, sudo-aware. Supports all major parameters: `present`/`absent`/`latest`, multi-package, repos, groups, security/bugfix filters, autoremove, download-only, and more. |
+| `bash.dnf.sh` | Full replacement for `ansible.builtin.dnf` — pure Bash, sudo-aware, callable as `bash.dnf:`. Supports all major parameters: `present`/`absent`/`latest`, multi-package, repos, groups, security/bugfix filters, autoremove, download-only, and more. |
 | `sample_bash.sh` | Working example demonstrating the Ansible module contract in Bash |
 
 ## Development

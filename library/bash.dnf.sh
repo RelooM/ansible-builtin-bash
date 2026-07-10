@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# ansible-module: dnf
+# ansible-module: bash.dnf
 # description: Manages packages with the dnf package manager — pure Bash.
+#   Callable as `bash.dnf:` in Ansible playbooks.
 #   Calls sudo -n internally when running as non-root, respecting fine-grained
 #   sudoers policies. No reliance on Ansible's become system.
 # options:
@@ -155,7 +156,7 @@
 set -euo pipefail
 
 # ---- Constants ----
-MODULE_NAME="dnf"
+MODULE_NAME="bash.dnf"
 CHANGED=false
 FAILED=false
 MSG=""
