@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+# Integration test playbook for dnf.sh module
+# This playbook validates dnf.sh against a real target system.
+# Requires Ansible installed on the control node.
+#
+# Usage:
+#   cd ansible-bash-modules
+#   ansible-playbook -i inventory playbooks/test_dnf.yml --module-path library
+#
+# For a dry-run (check mode):
+#   ansible-playbook -i inventory playbooks/test_dnf.yml --module-path library --check
+---
+- name: Test dnf.sh — Bash-based dnf module
+  hosts: all
+  gather_facts: true
+
+  vars:
+    # Use bash for module execution
+    ansible_shell_type: cmd
+    ansible_shell_executable: /bin/bash
+    # Module path is set via --module-path CLI arg or ANSIBLE_LIBRARY env
+
+  tasks:
+    - name: 1.1 Install a package (curl)
+      dnf:
+        name: curl
+        state: present
+      register: result
+
+    - name: 1.2 Verify first install
+      assert:
+        that:
+          - result is changed
+          - result is success
+          - result.msg is defined
+          - result.results is defined
+
+    - name: 1.3 Idempotency check — install same package again
+      dnf:
+        name: curl
+        state: present
+      register: result
+
+    - name: 1.4 Verify no change on re-install
+      assert:
+        that:
+          - result is not changed
+          - result is success
+
+    - name: 2.1 Install multiple packages
+      dnf:
+        name:
+          - wget
+          - git
+        state: present
+      register: result
+
+    - name: 2.2 Verify multi-package install
+      assert:
+        that:
+          - result is changed
+          - result is success
+
+    - name: 3.1 Update to latest version
+      dnf:
+        name: curl
+        state: latest
+      register: result
+
+    - name: 3.2 Verify latest state
+      assert:
+        that:
+          - result is success
+
+    - name: 4.1 Remove a package
+      dnf:
+        name: wget
+        state: absent
+      register: result
+
+    - name: 4.2 Verify removal
+      assert:
+        that:
+          - result is changed
+          - result is success
+
+    - name: 4.3 Idempotency — remove already-absent package
+      dnf:
+        name: wget
+        state: absent
+      register: result
+
+    - name: 4.4 Verify no change on re-remove
+      assert:
+        that:
+          - result is not changed
+          - result is success
+
+    - name: 5.1 Install with enablerepo
+      dnf:
+        name: htop
+        state: present
+        enablerepo: epel
+      register: result
+      ignore_errors: true
+
+    - name: 5.2 Check enablerepo result
+      debug:
+        msg: >
+          htop install from EPEL:
+          changed={{ result.changed }}, failed={{ result.failed }}
+          msg={{ result.msg }}
+
+    - name: 6.1 Security update only
+      dnf:
+        name: "*"
+        state: latest
+        security: true
+        update_cache: true
+      register: result
+      ignore_errors: true
+
+    - name: 6.2 Check security update result
+      debug:
+        msg: >
+          Security update:
+          changed={{ result.changed }}, failed={{ result.failed }}
+          msg={{ result.msg }}
+
+    - name: 7.1 Autoremove unused dependencies
+      dnf:
+        autoremove: true
+      register: result
+      ignore_errors: true
+
+    - name: 7.2 Check autoremove result
+      debug:
+        msg: >
+          Autoremove:
+          changed={{ result.changed }}, failed={{ result.failed }}
+          msg={{ result.msg }}
+
+    - name: 8.1 Update cache only (no package)
+      dnf:
+        update_cache: true
+        name: curl
+        state: present
+      register: result
+
+    - name: 8.2 Verify cache update succeeded
+      assert:
+        that:
+          - result is success
+
+    - name: 9.1 Download-only mode
+      dnf:
+        name: screen
+        state: present
+        download_only: true
+      register: result
+      ignore_errors: true
+
+    - name: 9.2 Check download-only result
+      debug:
+        msg: >
+          Download only:
+          changed={{ result.changed }}, failed={{ result.failed }}
+          msg={{ result.msg }}
+
+    - name: 10.1 Skip broken dependencies
+      dnf:
+        name: curl
+        state: present
+        skip_broken: true
+      register: result
+
+    - name: 10.2 Verify skip-broken succeeded
+      assert:
+        that:
+          - result is success
+
+    - name: 11.1 List installed packages
+      dnf:
+        list: installed
+      register: result
+      ignore_errors: true
+
+    - name: 11.2 Check list output
+      debug:
+        msg: >
+          List installed:
+          failed={{ result.failed }}, stdout follows:
+          {{ result.stdout | default('(no stdout)') }}
+
+    - name: 12.1 Install with allow_downgrade
+      dnf:
+        name: curl
+        state: present
+        allow_downgrade: false
+        nobest: true
+      register: result
+
+    - name: 12.2 Verify allow_downgrade + nobest
+      assert:
+        that:
+          - result is success
+
+    - name: 13.1 Check invocation is recorded
+      dnf:
+        name: curl
+        state: present
+      register: result
+
+    - name: 13.2 Verify invocation metadata
+      assert:
+        that:
+          - result.invocation is defined
+          - result.invocation.module_args is defined
+          - result.invocation.module_args.name is defined
+          - result.invocation.module_args.state == "present"
+          - result.invocation.module_args.name | select("equalto", "curl") | list | length > 0
+
+    - name: 14.1 Excluding packages from update
+      dnf:
+        name: "*"
+        state: latest
+        exclude: curl,kernel*
+      register: result
+      ignore_errors: true
+
+    - name: 14.2 Check exclude result
+      debug:
+        msg: >
+          Exclude test:
+          changed={{ result.changed }}, failed={{ result.failed }}

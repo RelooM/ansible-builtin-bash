@@ -1,0 +1,65 @@
+---
+# Example: Install common dev tools using dnf.sh
+# Run with:
+#   ansible-playbook -i inventory playbooks/example_usage.yml --module-path library
+- name: Install common developer tools
+  hosts: all
+  become: yes
+  gather_facts: true
+
+  vars:
+    dev_packages:
+      - git
+      - curl
+      - wget
+      - vim-enhanced
+      - tmux
+      - htop
+      - jq
+      - tree
+      - make
+      - gcc
+
+  tasks:
+    - name: Ensure all dev packages are present
+      dnf:
+        name: "{{ dev_packages }}"
+        state: present
+        update_cache: true
+      register: install_result
+
+    - name: Show install summary
+      debug:
+        msg: "Installed {{ dev_packages | length }} packages — changed={{ install_result.changed }}"
+
+    - name: Install a specific version with EPEL
+      dnf:
+        name: neovim
+        state: latest
+        enablerepo: epel
+      when: ansible_os_family == "RedHat"
+      register: neovim_result
+      ignore_errors: true
+
+    - name: Security updates only
+      dnf:
+        name: "*"
+        state: latest
+        security: true
+      register: security_updates
+      when: ansible_os_family == "RedHat"
+
+    - name: Report security updates
+      debug:
+        msg: "Security updates applied: {{ security_updates.changed | default(false) }}"
+
+    - name: Remove packages no longer needed
+      dnf:
+        autoremove: true
+      register: autoremove_result
+
+    - name: Final status
+      debug:
+        msg: >
+          All packages in desired state.
+          Idempotent on re-run — no changes unless new versions are available.

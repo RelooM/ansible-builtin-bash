@@ -62,11 +62,29 @@ Add the `library/` directory to your Ansible module path and reference modules b
 
 Or set `ANSIBLE_LIBRARY=./library` before running your playbook.
 
+## Sudo & Privilege Escalation
+
+The `dnf.sh` module is designed for environments with fine-grained sudo policies. Use Ansible's `become` directives:
+
+```yaml
+- hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: Install packages as privileged user
+      dnf:
+        name: httpd
+        state: present
+```
+
+Because the module calls `dnf` directly (not through `sudo` internally), it respects whatever privilege model Ansible has configured — `become`, `become_user`, `become_method`, and any sudoers restrictions on the target. This makes it suitable for environments where specific users have limited sudo access to `dnf` only.
+
 ## Available Modules
 
 | Module | Description |
 |---|---|
-| _(add yours here)_ | |
+| `dnf.sh` | Full replacement for `ansible.builtin.dnf` — pure Bash, sudo-aware. Supports all major parameters: `present`/`absent`/`latest`, multi-package, repos, groups, security/bugfix filters, autoremove, download-only, and more. |
+| `sample_bash.sh` | Working example demonstrating the Ansible module contract in Bash |
 
 ## Development
 
