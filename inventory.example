@@ -1,0 +1,21 @@
+# Example test inventory — copy to `inventory` and edit for your environment.
+# `inventory` is gitignored, so your real hosts/keys never get committed.
+
+[redhat]
+# Hostname or IP of a Red Hat-family test host (AlmaLinux/Rocky/RHEL 9+).
+el-host.example.com
+
+[debian]
+# Hostname or IP of a Debian-family test host (Debian 12+ / Ubuntu 22.04+).
+deb-host.example.com
+
+[redhat:vars]
+ansible_user=root
+# Path to the SSH private key for the redhat host (edit or remove as needed).
+# ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=/usr/bin/python3
+
+[debian:vars]
+ansible_user=root
+# ansible_ssh_private_key_file=~/.ssh/id_ed25519
+ansible_python_interpreter=/usr/bin/python3
