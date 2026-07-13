@@ -1,4 +1,23 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
+# ---- Ansible-native args bridge ----
+# Modern ansible-core invokes modules as `<module> <tmp_args_file>`, writing a
+# single line of space-separated `key=value` args (plus _ansible_* control keys)
+# into that file. When $1 is a readable file, load its tokens into $@ so the
+# module's own key=value parser works unchanged. No external deps / no source.
+if [ -n "${1:-}" ] && [ -f "$1" ] && [ -r "$1" ]; then
+  _ans_line=$(cat "$1")
+  set -f
+  set --
+  for _ans_tok in $_ans_line; do
+    case "$_ans_tok" in
+      _ansible_*) ;;
+      *=*) set -- "$@" "$_ans_tok" ;;
+    esac
+  done
+  set +f
+  unset _ans_line _ans_tok
+fi
+# ---- end args bridge ----
 # bash.debconf — Pure Bash replacement for ansible.builtin.debconf
 # pre-seeds the debconf database with values.
 
@@ -31,7 +50,7 @@ emit_result() {
   out+="\"msg\": $(jq_safe "$MSG")"
   out+=", \"rc\": $RC"
   [ -n "$STDOUT" ] && out+=", \"stdout\": $(jq_safe "$STDOUT")"
-  [ -n "$STDERR" ] && out+=", \"stderr\": $(jq_safe "$STDERR")")"
+  [ -n "$STDERR" ] && out+=", \"stderr\": $(jq_safe "$STDERR")"
   
   out+=", \"invocation\": {\"module_args\": {"
   out+="\"name\": $(jq_safe "$name"), "
@@ -61,9 +80,15 @@ command_exists() { command -v "$1" >/dev/null 2>&1; }
 
 detect_sudo() {
   if [ "$use_sudo" = "auto" ]; then
-    [ "$(id -u)" -ne 0 ] && command_exists sudo && SUDO_PREFIX="sudo -n"
+    if [ "$(id -u)" -ne 0 ] && command_exists sudo; then
+      SUDO_PREFIX="sudo -n"
+    fi
   elif [ "$use_sudo" = "true" ]; then
-    command_exists sudo && SUDO_PREFIX="sudo -n" || { FAILED=true; MSG="sudo requested but not found"; emit_result; }
+    if command_exists sudo; then
+      SUDO_PREFIX="sudo -n"
+    else
+      FAILED=true; MSG="sudo requested but not found"; emit_result
+    fi
   fi
 }
 
@@ -83,9 +108,8 @@ run_cmd() {
 # ---- Argument Parsing ----
 for arg in "$@"; do
   case "$arg" in
-    name=*) question="${arg#*=}" ;; # Spec says 'name' is pkg, but Ansible uses 'name' for question sometimes.
-                                   # Actually, spec says: name=pkg, question=key.
-    package=*) name="${arg#*=}" ;;
+    name=*) name="${arg#*=}" ;; # Package name
+    package=*) name="${arg#*=}" ;; # Alias for name
     question=*) question="${arg#*=}" ;;
     value=*) value="${arg#*=}" ;;
     vtype=*) vtype="${arg#*=}" ;;
@@ -105,25 +129,23 @@ done
 
 detect_sudo
 
-# 1. Get current value
+# 1. Get current value via debconf-show. This is reliable even for selections
+#    set without a registered template, unlike `debconf-communicate GET` which
+#    returns "10 <question> doesn't exist" in that case (so curr_val would stay
+#    empty and the module would always report changed).
 # debconf-show <package> outputs:
-# * <package>/<question>: <value>
-# The '*' indicates it has been seen.
+#   * <package>/<question>: <value>   (seen)
+#     <package>/<question>: <value>   (unseen)
 set +e
-curr_line=$(run_cmd debconf-show "$name" | grep -F "$question:" || true)
+curr_line=$(debconf-show "$name" 2>/dev/null | grep -F "$question:" || true)
 set -e
 
-# Parse current value: "  pkg/question: value" or "* pkg/question: value"
-# We use debconf-communicate for a more reliable 'GET'
-set +e
-comm_out=$(printf "get %s/%s\n" "$name" "$question" | run_cmd debconf-communicate "$name" || true)
-set -e
-# debconf-communicate output: "0 <value>" or "10 <question> doesn't exist"
 curr_val=""
 exists=false
-if [[ "$comm_out" =~ ^0\ (.*) ]]; then
-  curr_val="${BASH_REMATCH[1]}"
+if [ -n "$curr_line" ]; then
   exists=true
+  # Strip everything up to and including the first ": " to obtain the value.
+  curr_val="${curr_line#*: }"
 fi
 
 # 2. Check if change needed

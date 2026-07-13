@@ -1,0 +1,45 @@
+---
+# Test playbook for bash.known_hosts — adds a test host key entry for a
+# non-routable placeholder host, checks idempotency, then removes it in a
+# block/always. The module is JSON-driven: we ship library/ to the target and
+# invoke the script directly with ARGS_JSON exported.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_known_hosts.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    kh_host: example.bashmods.test
+    kh_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGNOREME000000000000000000000000000000 bashmods-test"
+  tasks:
+    - name: Ship library/ to target
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../library/"
+        dest: /tmp/bashmods/
+        mode: "0755"
+      become: false
+
+    - name: bash.known_hosts — add host key (run1, expect changed)
+      ansible.builtin.command: /tmp/bashmods/bash.known_hosts.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ kh_host }}", "key": "{{ kh_key }}", "state": "present", "use_sudo": "false"}'
+      register: kh_r1
+
+    - name: bash.known_hosts — add host key (idempotent)
+      ansible.builtin.command: /tmp/bashmods/bash.known_hosts.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ kh_host }}", "key": "{{ kh_key }}", "state": "present", "use_sudo": "false"}'
+      register: kh_r2
+
+    - name: ASSERT — add changed first, idempotent after
+      ansible.builtin.assert:
+        that:
+          - kh_r1.rc == 0 and (kh_r1.stdout | from_json).changed | bool
+          - kh_r2.rc == 0 and not ((kh_r2.stdout | from_json).changed | bool)
+        fail_msg: "bash.known_hosts test failed"
+
+    - name: CLEANUP — remove host key (always)
+      ansible.builtin.command: /tmp/bashmods/bash.known_hosts.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ kh_host }}", "key": "{{ kh_key }}", "state": "absent", "use_sudo": "false"}'
+      failed_when: false

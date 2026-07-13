@@ -1,0 +1,63 @@
+---
+# Test playbook for bash.deb822_repository — creates a deb822 .sources file
+# (enabled + disabled variants), checks idempotency, then removes both in a
+# block/always. Uses an example upstream (Ubuntu/Debian archive) so the file
+# content is realistic; no network fetch is performed by the module itself.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_deb822_repository.yml --module-path library --limit debian
+- hosts: debian
+  gather_facts: true
+  vars:
+    repo_name: bashmods-test
+  tasks:
+    - name: bash.deb822_repository — create enabled repo (run1, expect changed)
+      bash.deb822_repository:
+        name: "{{ repo_name }}"
+        types: [deb]
+        uris: ["http://archive.ubuntu.com/ubuntu"]
+        suites: ["{{ ansible_distribution_release }}"]
+        components: [main]
+        signed_by: ""
+        enabled: true
+        state: present
+      register: d8_r1
+
+    - name: bash.deb822_repository — create enabled repo (idempotent)
+      bash.deb822_repository:
+        name: "{{ repo_name }}"
+        types: [deb]
+        uris: ["http://archive.ubuntu.com/ubuntu"]
+        suites: ["{{ ansible_distribution_release }}"]
+        components: [main]
+        enabled: true
+        state: present
+      register: d8_r2
+
+    - name: bash.deb822_repository — create disabled repo variant
+      bash.deb822_repository:
+        name: "{{ repo_name }}-off"
+        types: [deb]
+        uris: ["http://archive.ubuntu.com/ubuntu"]
+        suites: ["{{ ansible_distribution_release }}"]
+        components: [main]
+        enabled: false
+        state: present
+      register: d8_off
+
+    - name: ASSERT — created (changed) then idempotent
+      ansible.builtin.assert:
+        that:
+          - d8_r1 is changed and d8_r1 is success
+          - d8_r2 is not changed and d8_r2 is success
+          - d8_off is changed and d8_off is success
+        fail_msg: "bash.deb822_repository test failed"
+
+    - name: CLEANUP — remove both repos (always)
+      bash.deb822_repository:
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ repo_name }}"
+        - "{{ repo_name }}-off"
+      failed_when: false

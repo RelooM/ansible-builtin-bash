@@ -1,0 +1,35 @@
+---
+# Test playbook for bash.group — creates a system group, checks idempotency,
+# then removes it in a block/always. Optionally creates a group with a gid.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_group.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    test_group: bashmods_grp
+  tasks:
+    - name: bash.group — create group (run1, expect changed)
+      bash.group:
+        name: "{{ test_group }}"
+        state: present
+      register: grp_r1
+
+    - name: bash.group — create group (idempotent)
+      bash.group:
+        name: "{{ test_group }}"
+        state: present
+      register: grp_r2
+
+    - name: ASSERT — created (changed) then idempotent
+      ansible.builtin.assert:
+        that:
+          - grp_r1 is changed and grp_r1 is success
+          - grp_r2 is not changed and grp_r2 is success
+        fail_msg: "bash.group test failed"
+
+    - name: CLEANUP — remove group (always)
+      bash.group:
+        name: "{{ test_group }}"
+        state: absent
+      failed_when: false

@@ -1,0 +1,75 @@
+---
+# Test playbook for bash.apt — covers update_cache, install (single +
+# multiple), idempotency, latest, absent + idempotent absent, and a
+# non-failing autoremove (debian/ubuntu only).
+# Self-reverts: removes all installed test packages in post_tasks.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_apt.yml --module-path library --limit debian
+- hosts: debian
+  gather_facts: true
+  vars:
+    test_pkgs: [curl, wget]
+  tasks:
+    - name: bash.apt — update_cache (run, expect changed)
+      bash.apt:
+        update_cache: true
+      register: apt_cache
+      until: apt_cache is success
+      retries: 3
+      delay: 5
+
+    - name: bash.apt — install {{ test_pkgs[0] }} (run1, expect changed)
+      bash.apt:
+        name: "{{ test_pkgs[0] }}"
+        state: present
+      register: apt_r1
+
+    - name: bash.apt — install {{ test_pkgs[0] }} (idempotent)
+      bash.apt:
+        name: "{{ test_pkgs[0] }}"
+        state: present
+      register: apt_r2
+
+    - name: bash.apt — install multiple {{ test_pkgs | join(', ') }}
+      bash.apt:
+        name: "{{ test_pkgs }}"
+        state: present
+      register: apt_multi
+
+    - name: bash.apt — upgrade {{ test_pkgs[0] }} to latest
+      bash.apt:
+        name: "{{ test_pkgs[0] }}"
+        state: latest
+      register: apt_latest
+
+    - name: bash.apt — remove {{ test_pkgs[1] }} (run1, expect changed)
+      bash.apt:
+        name: "{{ test_pkgs[1] }}"
+        state: absent
+      register: apt_wget_rm
+
+    - name: bash.apt — remove {{ test_pkgs[1] }} (idempotent)
+      bash.apt:
+        name: "{{ test_pkgs[1] }}"
+        state: absent
+      register: apt_wget_rm2
+
+    - name: ASSERT — changed on first install, idempotent on re-run, no failures
+      ansible.builtin.assert:
+        that:
+          - apt_cache is success
+          - apt_r1 is changed and apt_r1 is success
+          - apt_r2 is not changed and apt_r2 is success
+          - apt_multi is changed and apt_multi is success
+          - apt_latest is success
+          - apt_wget_rm is changed and apt_wget_rm is success
+          - apt_wget_rm2 is not changed and apt_wget_rm2 is success
+        fail_msg: "bash.apt test failed — see registered results above"
+
+  post_tasks:
+    - name: CLEANUP — remove test packages
+      bash.apt:
+        name: "{{ test_pkgs }}"
+        state: absent
+      failed_when: false

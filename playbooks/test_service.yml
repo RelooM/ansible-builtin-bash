@@ -1,0 +1,54 @@
+---
+# Test playbook for bash.service — starts and enables a universally-available
+# service (cron / cronie), checks idempotency, then stops and disables it in a
+# block/always. Picks the right unit per family automatically.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_service.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    svc_unit: "{{ 'cron' if ansible_os_family == 'Debian' else 'cronie' }}"
+  tasks:
+    - name: Check service is manageable (systemctl present)
+      ansible.builtin.command: command -v systemctl
+      register: svc_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "systemctl not available — skipping bash.service tests"
+      when: svc_cmd.rc != 0
+
+    - name: bash.service — start + enable {{ svc_unit }} (run1, expect changed)
+      bash.service:
+        name: "{{ svc_unit }}"
+        state: started
+        enabled: true
+      register: svc_r1
+      when: svc_cmd.rc == 0
+
+    - name: bash.service — start + enable {{ svc_unit }} (idempotent)
+      bash.service:
+        name: "{{ svc_unit }}"
+        state: started
+        enabled: true
+      register: svc_r2
+      when: svc_cmd.rc == 0
+
+    - name: ASSERT — start/enable changed first, idempotent after
+      ansible.builtin.assert:
+        that:
+          - svc_r1 is changed and svc_r1 is success
+          - svc_r2 is not changed and svc_r2 is success
+        fail_msg: "bash.service test failed"
+      when: svc_cmd.rc == 0
+
+    - name: CLEANUP — stop + disable {{ svc_unit }} (always)
+      bash.service:
+        name: "{{ svc_unit }}"
+        state: stopped
+        enabled: false
+      when: svc_cmd.rc == 0
+      failed_when: false

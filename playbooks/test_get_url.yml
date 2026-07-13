@@ -1,0 +1,56 @@
+---
+# Test playbook for bash.get_url — downloads a small test file to /tmp (and a
+# nested dir), checks idempotency on re-run, then removes the files in a
+# block/always. The module is JSON-driven: we ship library/ to the target and
+# invoke the script directly with ARGS_JSON exported.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_get_url.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    moddir: /tmp/bashmods
+    test_url: "https://raw.githubusercontent.com/ansible/ansible/devel/COPYING"
+    dest_files:
+      - /tmp/bashmods_get_url_test.txt
+      - /tmp/bashmods/get_url_nested.txt
+  tasks:
+    - name: Ship library/ to target
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../library/"
+        dest: "{{ moddir }}/"
+        mode: "0755"
+      become: false
+
+    - name: bash.get_url — download to file1 (run1, expect changed)
+      ansible.builtin.command: "{{ moddir }}/bash.get_url.sh"
+      environment:
+        ARGS_JSON: '{"url": "{{ test_url }}", "dest": "{{ dest_files[0] }}", "mode": "0644", "use_sudo": "false"}'
+      register: gu_r1
+
+    - name: bash.get_url — download to file1 (idempotent)
+      ansible.builtin.command: "{{ moddir }}/bash.get_url.sh"
+      environment:
+        ARGS_JSON: '{"url": "{{ test_url }}", "dest": "{{ dest_files[0] }}", "mode": "0644", "use_sudo": "false"}'
+      register: gu_r2
+
+    - name: bash.get_url — download to nested dir (expect changed)
+      ansible.builtin.command: "{{ moddir }}/bash.get_url.sh"
+      environment:
+        ARGS_JSON: '{"url": "{{ test_url }}", "dest": "{{ dest_files[1] }}", "mode": "0644", "use_sudo": "false"}'
+      register: gu_nested
+
+    - name: ASSERT — first download changed, re-run idempotent, nested changed
+      ansible.builtin.assert:
+        that:
+          - gu_r1.rc == 0 and (gu_r1.stdout | from_json).changed | bool
+          - gu_r2.rc == 0 and not ((gu_r2.stdout | from_json).changed | bool)
+          - gu_nested.rc == 0 and (gu_nested.stdout | from_json).changed | bool
+        fail_msg: "bash.get_url test failed — see module stdout above"
+
+    - name: CLEANUP — remove downloaded files (always)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ dest_files }}"
+      failed_when: false

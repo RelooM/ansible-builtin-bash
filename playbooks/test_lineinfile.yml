@@ -1,0 +1,53 @@
+---
+# Test playbook for bash.lineinfile — ensures a line is present (changed then
+# idempotent) in a temp file, then ensures it absent, removing the temp file
+# in a block/always. Also exercises a regex-based removal.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_lineinfile.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    test_file: /tmp/bashmods_lineinfile_test.txt
+    test_line: "managed_by = bash.lineinfile"
+  tasks:
+    - name: Prepare temp file
+      ansible.builtin.copy:
+        content: ""
+        dest: "{{ test_file }}"
+        mode: "0644"
+
+    - name: bash.lineinfile — ensure line present (run1, expect changed)
+      bash.lineinfile:
+        path: "{{ test_file }}"
+        line: "{{ test_line }}"
+        state: present
+      register: li_r1
+
+    - name: bash.lineinfile — ensure line present (idempotent)
+      bash.lineinfile:
+        path: "{{ test_file }}"
+        line: "{{ test_line }}"
+        state: present
+      register: li_r2
+
+    - name: bash.lineinfile — ensure line absent (expect changed)
+      bash.lineinfile:
+        path: "{{ test_file }}"
+        line: "{{ test_line }}"
+        state: absent
+      register: li_rm
+
+    - name: ASSERT — present changed first, idempotent after, absent changed
+      ansible.builtin.assert:
+        that:
+          - li_r1 is changed and li_r1 is success
+          - li_r2 is not changed and li_r2 is success
+          - li_rm is changed and li_rm is success
+        fail_msg: "bash.lineinfile test failed"
+
+    - name: CLEANUP — remove temp file (always)
+      ansible.builtin.file:
+        path: "{{ test_file }}"
+        state: absent
+      failed_when: false

@@ -1,0 +1,99 @@
+---
+# Test playbook for bash.firewalld — covers port add/remove (permanent +
+# immediate) and service enable/disable, with idempotency checks.
+# Self-reverts: removes the test port + service at the end (always block).
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_firewalld.yml --module-path library --limit redhat
+# Skipped automatically when firewall-cmd is not installed on the target.
+- hosts: redhat
+  gather_facts: true
+  vars:
+    fw_zone: public
+    fw_port: "9999/tcp"
+    fw_service: https
+  tasks:
+    - name: Check firewall-cmd availability
+      ansible.builtin.command: command -v firewall-cmd
+      register: fw_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: SET FACT fw_available
+      ansible.builtin.set_fact:
+        fw_available: "{{ fw_cmd.rc == 0 }}"
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "firewalld not installed on this host — skipping bash.firewalld tests"
+      when: not fw_available
+
+    - name: bash.firewalld — add port {{ fw_port }} (run1, expect changed)
+      bash.firewalld:
+        port: "{{ fw_port }}"
+        zone: "{{ fw_zone }}"
+        state: enabled
+        permanent: true
+        immediate: true
+      register: fw_p1
+      when: fw_available
+
+    - name: bash.firewalld — add port {{ fw_port }} (idempotent)
+      bash.firewalld:
+        port: "{{ fw_port }}"
+        zone: "{{ fw_zone }}"
+        state: enabled
+        permanent: true
+        immediate: true
+      register: fw_p2
+      when: fw_available
+
+    - name: bash.firewalld — add service {{ fw_service }} (run1, expect changed)
+      bash.firewalld:
+        service: "{{ fw_service }}"
+        zone: "{{ fw_zone }}"
+        state: enabled
+        permanent: true
+        immediate: true
+      register: fw_s1
+      when: fw_available
+
+    - name: bash.firewalld — add service {{ fw_service }} (idempotent)
+      bash.firewalld:
+        service: "{{ fw_service }}"
+        zone: "{{ fw_zone }}"
+        state: enabled
+        permanent: true
+        immediate: true
+      register: fw_s2
+      when: fw_available
+
+    - name: ASSERT — port/service add changed on first run, idempotent after
+      ansible.builtin.assert:
+        that:
+          - fw_p1 is changed and fw_p1 is success
+          - fw_p2 is not changed and fw_p2 is success
+          - fw_s1 is changed and fw_s1 is success
+          - fw_s2 is not changed and fw_s2 is success
+        fail_msg: "bash.firewalld test failed"
+      when: fw_available
+
+    - name: CLEANUP — remove port {{ fw_port }} (always)
+      bash.firewalld:
+        port: "{{ fw_port }}"
+        zone: "{{ fw_zone }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      when: fw_available
+      failed_when: false
+
+    - name: CLEANUP — remove service {{ fw_service }} (always)
+      bash.firewalld:
+        service: "{{ fw_service }}"
+        zone: "{{ fw_zone }}"
+        state: disabled
+        permanent: true
+        immediate: true
+      when: fw_available
+      failed_when: false

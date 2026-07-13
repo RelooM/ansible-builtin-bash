@@ -1,0 +1,66 @@
+---
+# Test playbook for bash.iptables — adds a test rule to the filter/INPUT chain
+# (with a unique comment so we can identify it), checks it is present (changed
+# then idempotent), then removes it in a block/always. Non-destructive: uses a
+# harmless LOG-less ACCEPT on a reserved-test port.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_iptables.yml --module-path library
+# Requires iptables on the target (skipped if absent).
+- hosts: all
+  gather_facts: true
+  vars:
+    test_comment: "bashmods-iptables-test"
+    test_port: "9998"
+  tasks:
+    - name: Check iptables availability
+      ansible.builtin.command: command -v iptables
+      register: ipt_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "iptables not available — skipping bash.iptables tests"
+      when: ipt_cmd.rc != 0
+
+    - name: bash.iptables — add test rule (run1, expect changed)
+      bash.iptables:
+        chain: INPUT
+        protocol: tcp
+        dport: "{{ test_port }}"
+        jump: ACCEPT
+        comment: "{{ test_comment }}"
+        state: present
+      register: ipt_r1
+      when: ipt_cmd.rc == 0
+
+    - name: bash.iptables — add test rule (idempotent)
+      bash.iptables:
+        chain: INPUT
+        protocol: tcp
+        dport: "{{ test_port }}"
+        jump: ACCEPT
+        comment: "{{ test_comment }}"
+        state: present
+      register: ipt_r2
+      when: ipt_cmd.rc == 0
+
+    - name: ASSERT — rule added (changed) then idempotent
+      ansible.builtin.assert:
+        that:
+          - ipt_r1 is changed and ipt_r1 is success
+          - ipt_r2 is not changed and ipt_r2 is success
+        fail_msg: "bash.iptables test failed"
+      when: ipt_cmd.rc == 0
+
+    - name: CLEANUP — remove test rule (always)
+      bash.iptables:
+        chain: INPUT
+        protocol: tcp
+        dport: "{{ test_port }}"
+        jump: ACCEPT
+        comment: "{{ test_comment }}"
+        state: absent
+      when: ipt_cmd.rc == 0
+      failed_when: false

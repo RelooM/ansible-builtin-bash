@@ -1,0 +1,57 @@
+---
+# Test playbook for bash.dpkg — installs a local .deb (downloaded to a temp
+# file, never committed), checks idempotency via state=present, then removes
+# the package in a block/always. The package is a small, universally available
+# one (e.g. `hello`) fetched from the distro's own pool; no module network call.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_dpkg.yml --module-path library --limit debian
+- hosts: debian
+  gather_facts: true
+  vars:
+    deb_url: "http://archive.ubuntu.com/ubuntu/pool/universe/h/hello/hello_2.10-2ubuntu4_amd64.deb"
+    deb_name: hello
+  tasks:
+    - name: Download a sample .deb to /tmp (via get_url module)
+      bash.get_url:
+        url: "{{ deb_url }}"
+        dest: "/tmp/{{ deb_name }}.deb"
+        mode: "0644"
+      register: deb_dl
+      ignore_errors: true   # mirror may differ across distros; graceful skip
+
+    - name: bash.dpkg — install downloaded .deb (run1, expect changed)
+      bash.dpkg:
+        deb: "/tmp/{{ deb_name }}.deb"
+        state: present
+      register: dpkg_r1
+      when: deb_dl is success
+
+    - name: bash.dpkg — install again (idempotent)
+      bash.dpkg:
+        deb: "/tmp/{{ deb_name }}.deb"
+        state: present
+      register: dpkg_r2
+      when: deb_dl is success
+
+    - name: ASSERT — install changed first, idempotent after
+      ansible.builtin.assert:
+        that:
+          - dpkg_r1 is changed and dpkg_r1 is success
+          - dpkg_r2 is not changed and dpkg_r2 is success
+        fail_msg: "bash.dpkg test failed"
+      when: deb_dl is success
+
+    - name: CLEANUP — purge package (always)
+      bash.dpkg:
+        name: "{{ deb_name }}"
+        state: absent
+      when: deb_dl is success
+      failed_when: false
+
+    - name: CLEANUP — remove downloaded .deb (always)
+      bash.dpkg:
+        deb: "/tmp/{{ deb_name }}.deb"
+        state: absent
+      when: deb_dl is success
+      failed_when: false

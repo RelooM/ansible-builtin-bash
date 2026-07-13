@@ -1,0 +1,61 @@
+---
+# Test playbook for bash.reboot — GATED / INTERACTIVE.
+#
+# bash.reboot is destructive (it reboots the host). This playbook does NOT
+# reboot by default. It prints exactly what *would* be done and then pauses
+# for explicit confirmation. Only after you type 'yes' at the prompt (or pass
+# -e proceed=yes) does it actually trigger the reboot — which is itself
+# followed by a wait_for_connection + a verify task to confirm the host came
+# back. There is nothing to "clean up" afterwards; the module is inherently
+# self-contained.
+#
+# Usage (DRY RUN — prints plan, no reboot):
+#   ansible-playbook -i inventory playbooks/test_reboot.yml --module-path library --limit redhat
+#
+# Usage (REAL REBOOT — confirm at the prompt or pass -e proceed=yes):
+#   ansible-playbook -i inventory playbooks/test_reboot.yml --module-path library --limit redhat -e proceed=yes
+- hosts: all
+  gather_facts: true
+  vars:
+    proceed: false          # gate: set to true via -e proceed=yes to actually reboot
+    reboot_timeout: 300
+  tasks:
+    - name: PLAN — describe what bash.reboot would do
+      ansible.builtin.debug:
+        msg: |
+          bash.reboot test plan for {{ inventory_hostname }}:
+            - module: bash.reboot (state=rebooted, reboot_timeout={{ reboot_timeout }})
+            - this is DESTRUCTIVE (host will reboot)
+            - gated by var 'proceed' (current: {{ proceed }})
+            - if proceed=true: trigger reboot, then wait_for_connection, then verify uptime reset
+
+    - name: GATE — require explicit confirmation before rebooting
+      ansible.builtin.pause:
+        prompt: "Type 'yes' to REBOOT {{ inventory_hostname }} now (or run with -e proceed=yes)"
+      when: not (proceed | bool)
+
+    - name: PROCEED CHECK — abort if not confirmed
+      ansible.builtin.meta: end_host
+      when: not (proceed | bool) and (ansible_user_input | default('')) | trim | lower != 'yes'
+
+    - name: bash.reboot — trigger reboot
+      bash.reboot:
+        state: rebooted
+        reboot_timeout: "{{ reboot_timeout }}"
+      when: (proceed | bool) or (ansible_user_input | default('') | trim | lower == 'yes')
+
+    - name: VERIFY — wait for host to return
+      ansible.builtin.wait_for_connection:
+        timeout: "{{ reboot_timeout }}"
+      when: (proceed | bool) or (ansible_user_input | default('') | trim | lower == 'yes')
+
+    - name: VERIFY — confirm host is up (uptime)
+      ansible.builtin.command: uptime
+      register: post_up
+      changed_when: false
+      when: (proceed | bool) or (ansible_user_input | default('') | trim | lower == 'yes')
+
+    - name: VERIFY — report post-reboot uptime
+      ansible.builtin.debug:
+        msg: "Post-reboot uptime for {{ inventory_hostname }}: {{ post_up.stdout | default('n/a') }}"
+      when: (proceed | bool) or (ansible_user_input | default('') | trim | lower == 'yes')

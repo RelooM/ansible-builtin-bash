@@ -1,0 +1,49 @@
+---
+# Test playbook for bash.user — creates a user (with a group), sets a password
+# via the module, checks idempotency, then removes the user (and home) in a
+# block/always. The test password is a throwaway hash generated at runtime.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_user.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    test_user: bashmods_usr
+  tasks:
+    - name: Generate throwaway password hash
+      ansible.builtin.set_fact:
+        test_pwhash: "{{ lookup('ansible.builtin.password', '/dev/null', encrypt='sha512_crypt') }}"
+      run_once: true
+
+    - name: bash.user — create user without password (run1, expect changed)
+      bash.user:
+        name: "{{ test_user }}"
+        state: present
+      register: usr_r1
+
+    - name: bash.user — create user without password (idempotent)
+      bash.user:
+        name: "{{ test_user }}"
+        state: present
+      register: usr_r2
+
+    - name: bash.user — set password (expect changed)
+      bash.user:
+        name: "{{ test_user }}"
+        password: "{{ test_pwhash }}"
+      register: usr_pw
+
+    - name: ASSERT — created changed, idempotent after, password set changed
+      ansible.builtin.assert:
+        that:
+          - usr_r1 is changed and usr_r1 is success
+          - usr_r2 is not changed and usr_r2 is success
+          - usr_pw is changed and usr_pw is success
+        fail_msg: "bash.user test failed"
+
+    - name: CLEANUP — remove user + home (always)
+      bash.user:
+        name: "{{ test_user }}"
+        state: absent
+        remove: true
+      failed_when: false

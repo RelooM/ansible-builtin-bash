@@ -1,4 +1,23 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
+# ---- Ansible-native args bridge ----
+# Modern ansible-core invokes modules as `<module> <tmp_args_file>`, writing a
+# single line of space-separated `key=value` args (plus _ansible_* control keys)
+# into that file. When $1 is a readable file, load its tokens into $@ so the
+# module's own key=value parser works unchanged. No external deps / no source.
+if [ -n "${1:-}" ] && [ -f "$1" ] && [ -r "$1" ]; then
+  _ans_line=$(cat "$1")
+  set -f
+  set --
+  for _ans_tok in $_ans_line; do
+    case "$_ans_tok" in
+      _ansible_*) ;;
+      *=*) set -- "$@" "$_ans_tok" ;;
+    esac
+  done
+  set +f
+  unset _ans_line _ans_tok
+fi
+# ---- end args bridge ----
 # ansible-module: bash.dnf
 # description: Manages packages with the dnf package manager — pure Bash.
 #   Callable as `bash.dnf:` in Ansible playbooks.
@@ -6,9 +25,13 @@
 #   sudoers policies. No reliance on Ansible's become system.
 # options:
 #   name:
-#     description: A package name or package specifier with version (name-1.0), a URL, or local path to an RPM.
-#                  Can be a comma-separated string or list. Use '@group' for package groups.
+#     description: A package name or package specifier with version (pkg-1.0), a URL, or local path to an .rpm.
+#                  Can be a comma-separated string or list. @group for groups.
 #     required: true (unless list is used or autoremove=true)
+#     type: list
+#   pkg:
+#     description: Alias for name.
+#     required: false
 #     type: list
 #   state:
 #     description: Whether to install (present, latest), or remove (absent) a package.

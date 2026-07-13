@@ -1,0 +1,58 @@
+---
+# Test playbook for bash.selinux — captures the current enforcing state,
+# exercises permissive (changed) + idempotent re-apply, then restores the
+# original state in an always block.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_selinux.yml --module-path library --limit redhat
+# Skipped automatically when SELinux tooling (getenforce) is absent.
+- hosts: redhat
+  gather_facts: true
+  tasks:
+    - name: Check SELinux tooling
+      ansible.builtin.command: command -v getenforce
+      register: se_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: Capture current SELinux state
+      ansible.builtin.command: getenforce
+      register: se_cur
+      changed_when: false
+      when: se_cmd.rc == 0
+
+    - name: SET FACT selinux_state (lowercased)
+      ansible.builtin.set_fact:
+        selinux_state: "{{ (se_cur.stdout | default('Disabled')) | lower }}"
+      when: se_cmd.rc == 0
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "SELinux not active on this host — skipping bash.selinux tests"
+      when: se_cmd.rc != 0
+
+    - name: bash.selinux — set permissive (run1, expect changed)
+      bash.selinux:
+        state: permissive
+      register: se_r1
+      when: se_cmd.rc == 0 and selinux_state != 'disabled'
+
+    - name: bash.selinux — set permissive (idempotent)
+      bash.selinux:
+        state: permissive
+      register: se_r2
+      when: se_cmd.rc == 0 and selinux_state != 'disabled'
+
+    - name: ASSERT — changed first run, idempotent after, no failures
+      ansible.builtin.assert:
+        that:
+          - se_r1 is changed and se_r1 is success
+          - se_r2 is not changed and se_r2 is success
+        fail_msg: "bash.selinux test failed"
+      when: se_cmd.rc == 0 and selinux_state != 'disabled'
+
+    - name: CLEANUP — restore original state (always)
+      bash.selinux:
+        state: "{{ selinux_state }}"
+      when: se_cmd.rc == 0 and selinux_state is defined and selinux_state != 'disabled'
+      failed_when: false

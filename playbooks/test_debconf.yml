@@ -1,0 +1,62 @@
+---
+# Test playbook for bash.debconf — sets a low-priority debconf selection for a
+# package, reads it back, then clears it (sets value to empty) in a block/always.
+# The debconf database is mutated for an existing package name only; harmless to
+# the system. Skipped if `debconf-get-selections` is unavailable.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_debconf.yml --module-path library --limit debian
+- hosts: debian
+  gather_facts: true
+  vars:
+    dc_pkg: "bash"          # universally present; safe to set a dummy selection
+    dc_key: "bash/sh"
+  tasks:
+    - name: Check debconf tooling
+      ansible.builtin.command: command -v debconf-get-selections
+      register: dc_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "debconf tooling not available — skipping bash.debconf tests"
+      when: dc_cmd.rc != 0
+
+    - name: bash.debconf — set selection to false (run1, expect changed)
+      bash.debconf:
+        name: "{{ dc_pkg }}"
+        question: "{{ dc_key }}"
+        vtype: boolean
+        value: "false"
+        state: present
+      register: dc_r1
+      when: dc_cmd.rc == 0
+
+    - name: bash.debconf — set selection to false (idempotent)
+      bash.debconf:
+        name: "{{ dc_pkg }}"
+        question: "{{ dc_key }}"
+        vtype: boolean
+        value: "false"
+        state: present
+      register: dc_r2
+      when: dc_cmd.rc == 0
+
+    - name: ASSERT — set changed on first run, idempotent after
+      ansible.builtin.assert:
+        that:
+          - dc_r1 is changed and dc_r1 is success
+          - dc_r2 is not changed and dc_r2 is success
+        fail_msg: "bash.debconf test failed"
+      when: dc_cmd.rc == 0
+
+    - name: CLEANUP — clear selection (always)
+      bash.debconf:
+        name: "{{ dc_pkg }}"
+        question: "{{ dc_key }}"
+        vtype: boolean
+        value: ""
+        state: present
+      when: dc_cmd.rc == 0
+      failed_when: false

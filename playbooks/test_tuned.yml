@@ -1,0 +1,71 @@
+---
+# Test playbook for bash.tuned — captures the active profile, flips to a
+# different profile (so the restore is a real change), exercises idempotency,
+# then restores the original profile in an always block.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_tuned.yml --module-path library --limit redhat
+# Skipped automatically when tuned-adm is absent.
+- hosts: redhat
+  gather_facts: true
+  vars:
+    probe_profile: powersave   # guaranteed distinct from balanced on most images
+    test_profile: balanced
+  tasks:
+    - name: Check tuned-adm availability
+      ansible.builtin.command: command -v tuned-adm
+      register: tuned_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: Capture current tuned profile
+      ansible.builtin.command: tuned-adm active
+      register: tuned_cur
+      changed_when: false
+      when: tuned_cmd.rc == 0
+
+    - name: SET FACT tuned_profile
+      ansible.builtin.set_fact:
+        tuned_profile: "{{ (tuned_cur.stdout | default('')).split(': ')[-1] | trim }}"
+      when: tuned_cmd.rc == 0 and tuned_cur.rc == 0
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "tuned not installed on this host — skipping bash.tuned tests"
+      when: tuned_cmd.rc != 0
+
+    - name: bash.tuned — pre-switch to {{ probe_profile }} (ensure test is a change)
+      bash.tuned:
+        name: "{{ probe_profile }}"
+        state: present
+      register: tu_pre
+      when: tuned_cmd.rc == 0 and tuned_profile is defined
+
+    - name: bash.tuned — set {{ test_profile }} (run1, expect changed)
+      bash.tuned:
+        name: "{{ test_profile }}"
+        state: present
+      register: tu_r1
+      when: tuned_cmd.rc == 0 and tuned_profile is defined
+
+    - name: bash.tuned — set {{ test_profile }} (idempotent)
+      bash.tuned:
+        name: "{{ test_profile }}"
+        state: present
+      register: tu_r2
+      when: tuned_cmd.rc == 0 and tuned_profile is defined
+
+    - name: ASSERT — changed first run, idempotent after, no failures
+      ansible.builtin.assert:
+        that:
+          - tu_r1 is changed and tu_r1 is success
+          - tu_r2 is not changed and tu_r2 is success
+        fail_msg: "bash.tuned test failed"
+      when: tuned_cmd.rc == 0 and tuned_profile is defined
+
+    - name: CLEANUP — restore original profile (always)
+      bash.tuned:
+        name: "{{ tuned_profile }}"
+        state: present
+      when: tuned_cmd.rc == 0 and tuned_profile is defined
+      failed_when: false

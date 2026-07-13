@@ -1,0 +1,43 @@
+---
+# Test playbook for bash.subscription_manager — exercises the SAFE, no-op
+# paths only (state=absent / unregister when already unregistered). Real
+# registration (state=present) requires RHSM credentials and is intentionally
+# NOT covered here to avoid mutating subscription state on the host.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_subscription_manager.yml --module-path library --limit redhat
+# Skipped automatically when subscription-manager is absent.
+- hosts: redhat
+  gather_facts: true
+  tasks:
+    - name: Check subscription-manager availability
+      ansible.builtin.command: command -v subscription-manager
+      register: subs_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "subscription-manager not installed — skipping bash.subscription_manager tests"
+      when: subs_cmd.rc != 0
+
+    - name: bash.subscription_manager — state=absent (no-op unregister)
+      bash.subscription_manager:
+        state: absent
+      register: sm_r1
+      when: subs_cmd.rc == 0
+
+    - name: bash.subscription_manager — state=absent (idempotent no-op)
+      bash.subscription_manager:
+        state: absent
+        force_register: false
+      register: sm_r2
+      when: subs_cmd.rc == 0
+
+    - name: ASSERT — no-op unregister does not fail or change
+      ansible.builtin.assert:
+        that:
+          - sm_r1 is success and sm_r1 is not changed
+          - sm_r2 is success and sm_r2 is not changed
+        fail_msg: "bash.subscription_manager test failed"
+      when: subs_cmd.rc == 0

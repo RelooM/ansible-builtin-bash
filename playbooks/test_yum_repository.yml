@@ -1,0 +1,55 @@
+---
+# Test playbook for bash.yum_repository — creates a yum repo file (enabled +
+# disabled variants), checks idempotency, then removes both in a block/always.
+# The module is JSON-driven: we ship library/ to the target and invoke the
+# script directly with ARGS_JSON exported. RedHat family only.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_yum_repository.yml --module-path library --limit redhat
+- hosts: redhat
+  gather_facts: true
+  vars:
+    repo_name: bashmods-test
+    repo_baseurl: "http://mirror.centos.org/centos/$releasever/AppStream/$basearch/os/"
+  tasks:
+    - name: Ship library/ to target
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../library/"
+        dest: /tmp/bashmods/
+        mode: "0755"
+      become: false
+
+    - name: bash.yum_repository — create enabled repo (run1, expect changed)
+      ansible.builtin.command: /tmp/bashmods/bash.yum_repository.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ repo_name }}", "description": "bashmods test repo", "baseurl": "{{ repo_baseurl }}", "enabled": true, "gpgcheck": false, "state": "present", "use_sudo": "auto"}'
+      register: yr_r1
+
+    - name: bash.yum_repository — create enabled repo (idempotent)
+      ansible.builtin.command: /tmp/bashmods/bash.yum_repository.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ repo_name }}", "description": "bashmods test repo", "baseurl": "{{ repo_baseurl }}", "enabled": true, "gpgcheck": false, "state": "present", "use_sudo": "auto"}'
+      register: yr_r2
+
+    - name: bash.yum_repository — create disabled repo variant (expect changed)
+      ansible.builtin.command: /tmp/bashmods/bash.yum_repository.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ repo_name }}-off", "description": "bashmods test repo off", "baseurl": "{{ repo_baseurl }}", "enabled": false, "gpgcheck": false, "state": "present", "use_sudo": "auto"}'
+      register: yr_off
+
+    - name: ASSERT — created (changed) then idempotent
+      ansible.builtin.assert:
+        that:
+          - yr_r1.rc == 0 and (yr_r1.stdout | from_json).changed | bool
+          - yr_r2.rc == 0 and not ((yr_r2.stdout | from_json).changed | bool)
+          - yr_off.rc == 0 and (yr_off.stdout | from_json).changed | bool
+        fail_msg: "bash.yum_repository test failed"
+
+    - name: CLEANUP — remove both repos (always)
+      ansible.builtin.command: /tmp/bashmods/bash.yum_repository.sh
+      environment:
+        ARGS_JSON: '{"name": "{{ item }}", "state": "absent", "use_sudo": "auto"}'
+      loop:
+        - "{{ repo_name }}"
+        - "{{ repo_name }}-off"
+      failed_when: false

@@ -1,0 +1,48 @@
+---
+# Test playbook for bash.timezone — captures the current timezone, switches to
+# a test zone (UTC — universally valid), checks idempotency, then restores the
+# original timezone in a block/always.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_timezone.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    test_tz: UTC
+  tasks:
+    - name: Capture current timezone
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: tz_cur
+      changed_when: false
+      failed_when: false
+
+    - name: SET FACT tz_orig
+      ansible.builtin.set_fact:
+        tz_orig: "{{ tz_cur.stdout | trim }}"
+      when: tz_cur.rc == 0 and tz_cur.stdout | length > 0
+
+    - name: bash.timezone — set {{ test_tz }} (run1, expect changed unless already UTC)
+      bash.timezone:
+        name: "{{ test_tz }}"
+      register: tz_r1
+      when: tz_orig is defined and tz_orig != test_tz
+
+    - name: bash.timezone — set {{ test_tz }} (idempotent)
+      bash.timezone:
+        name: "{{ test_tz }}"
+      register: tz_r2
+      when: tz_orig is defined
+
+    - name: ASSERT — changed first, idempotent after; no failures
+      ansible.builtin.assert:
+        that:
+          - tz_r1 is changed and tz_r1 is success
+          - tz_r2 is not changed and tz_r2 is success
+        fail_msg: "bash.timezone test failed"
+      when: tz_orig is defined and tz_orig != test_tz
+
+    - name: CLEANUP — restore original timezone (always)
+      bash.timezone:
+        name: "{{ tz_orig }}"
+      when: tz_orig is defined
+      failed_when: false

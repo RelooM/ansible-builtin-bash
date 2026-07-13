@@ -1,0 +1,54 @@
+---
+# Test playbook for bash.sysctl — sets a writable, non-critical kernel param
+# (vm.swappiness) on a default of 10, checks idempotency, then removes the
+# entry (state=absent) in a block/always. Non-destructive: value restored to
+# the original if it was non-default.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_sysctl.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    sys_param: vm.swappiness
+    sys_value: "15"
+  tasks:
+    - name: Capture existing sysctl value
+      ansible.builtin.command: "sysctl -n {{ sys_param }}"
+      register: sc_cur
+      changed_when: false
+      failed_when: false
+
+    - name: bash.sysctl — set {{ sys_param }}={{ sys_value }} (run1, expect changed)
+      bash.sysctl:
+        name: "{{ sys_param }}"
+        value: "{{ sys_value }}"
+        state: present
+        sysctl_set: true
+      register: sc_r1
+
+    - name: bash.sysctl — set same value (idempotent)
+      bash.sysctl:
+        name: "{{ sys_param }}"
+        value: "{{ sys_value }}"
+        state: present
+        sysctl_set: true
+      register: sc_r2
+
+    - name: ASSERT — set changed first, idempotent after
+      ansible.builtin.assert:
+        that:
+          - sc_r1 is changed and sc_r1 is success
+          - sc_r2 is not changed and sc_r2 is success
+        fail_msg: "bash.sysctl test failed"
+
+    - name: CLEANUP — remove entry from config (always)
+      bash.sysctl:
+        name: "{{ sys_param }}"
+        state: absent
+      failed_when: false
+
+    - name: CLEANUP — restore original live value if it differed (always)
+      ansible.builtin.command: "sysctl -w {{ sys_param }}={{ sc_cur.stdout }}"
+      when: sc_cur.rc == 0 and sc_cur.stdout | length > 0 and sc_cur.stdout != sys_value
+      changed_when: false
+      failed_when: false

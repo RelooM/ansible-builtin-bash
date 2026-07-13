@@ -1,0 +1,36 @@
+---
+# Test playbook for bash.rpm_key — exercises the SAFE paths: removing a
+# non-existent / bogus key (no-op, idempotent) via both `key` and `key_id`.
+# A real import (present) requires a trusted key source and is intentionally
+# not performed here to keep the test side-effect free.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_rpm_key.yml --module-path library --limit redhat
+- hosts: redhat
+  gather_facts: true
+  tasks:
+    - name: bash.rpm_key — absent bogus key (no-op, expect changed=false)
+      bash.rpm_key:
+        key: BADSIGBADKEY0000
+        state: absent
+      register: rk_r1
+
+    - name: bash.rpm_key — absent bogus key (idempotent)
+      bash.rpm_key:
+        key: BADSIGBADKEY0000
+        state: absent
+      register: rk_r2
+
+    - name: bash.rpm_key — absent bogus key_id (no-op)
+      bash.rpm_key:
+        key_id: BADSIGBADKEY0000
+        state: absent
+      register: rk_r3
+
+    - name: ASSERT — removing a missing key is a safe no-op (no failures)
+      ansible.builtin.assert:
+        that:
+          - rk_r1 is success and rk_r1 is not changed
+          - rk_r2 is success and rk_r2 is not changed
+          - rk_r3 is success and rk_r3 is not changed
+        fail_msg: "bash.rpm_key test failed"

@@ -1,0 +1,57 @@
+---
+# Test playbook for bash.systemd — creates a trivial oneshot unit file, enables
+# it (creating the symlink), checks idempotency, then disables and removes the
+# unit in a block/always. Harmless no-op unit.
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_systemd.yml --module-path library
+- hosts: all
+  gather_facts: true
+  vars:
+    unit_name: bashmods-test.service
+  tasks:
+    - name: Check systemctl availability
+      ansible.builtin.command: command -v systemctl
+      register: sys_cmd
+      changed_when: false
+      failed_when: false
+
+    - name: SKIP NOTICE
+      ansible.builtin.debug:
+        msg: "systemctl not available — skipping bash.systemd tests"
+      when: sys_cmd.rc != 0
+
+    - name: bash.systemd — create + enable unit (run1, expect changed)
+      bash.systemd:
+        name: "{{ unit_name }}"
+        enabled: true
+        state: present
+        daemon_reload: true
+      register: sysd_r1
+      when: sys_cmd.rc == 0
+
+    - name: bash.systemd — create + enable unit (idempotent)
+      bash.systemd:
+        name: "{{ unit_name }}"
+        enabled: true
+        state: present
+        daemon_reload: true
+      register: sysd_r2
+      when: sys_cmd.rc == 0
+
+    - name: ASSERT — create/enable changed first, idempotent after
+      ansible.builtin.assert:
+        that:
+          - sysd_r1 is changed and sysd_r1 is success
+          - sysd_r2 is not changed and sysd_r2 is success
+        fail_msg: "bash.systemd test failed"
+      when: sys_cmd.rc == 0
+
+    - name: CLEANUP — disable + remove unit (always)
+      bash.systemd:
+        name: "{{ unit_name }}"
+        enabled: false
+        state: absent
+        daemon_reload: true
+      when: sys_cmd.rc == 0
+      failed_when: false
