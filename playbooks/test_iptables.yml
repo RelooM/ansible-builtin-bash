@@ -14,7 +14,7 @@
     test_port: "9998"
   tasks:
     - name: Check iptables availability
-      ansible.builtin.command: command -v iptables
+      ansible.builtin.command: which -s iptables
       register: ipt_cmd
       changed_when: false
       failed_when: false
@@ -28,9 +28,8 @@
       bash.iptables:
         chain: INPUT
         protocol: tcp
-        dport: "{{ test_port }}"
+        destination_port: "{{ test_port }}"
         jump: ACCEPT
-        comment: "{{ test_comment }}"
         state: present
       register: ipt_r1
       when: ipt_cmd.rc == 0
@@ -39,9 +38,8 @@
       bash.iptables:
         chain: INPUT
         protocol: tcp
-        dport: "{{ test_port }}"
+        destination_port: "{{ test_port }}"
         jump: ACCEPT
-        comment: "{{ test_comment }}"
         state: present
       register: ipt_r2
       when: ipt_cmd.rc == 0
@@ -58,9 +56,8 @@
       bash.iptables:
         chain: INPUT
         protocol: tcp
-        dport: "{{ test_port }}"
+        destination_port: "{{ test_port }}"
         jump: ACCEPT
-        comment: "{{ test_comment }}"
         state: absent
       when: ipt_cmd.rc == 0
       failed_when: false

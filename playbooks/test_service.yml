@@ -1,17 +1,21 @@
 ---
 # Test playbook for bash.service — starts and enables a universally-available
-# service (cron / cronie), checks idempotency, then stops and disables it in a
-# block/always. Picks the right unit per family automatically.
+# service (cron / cronie), checks idempotency, then restores its original
+# state in a block/always. Picks the right unit per family automatically.
+#
+# NOTE: because cron/cronie may already be running/enabled on the host, the
+# assert only requires success + idempotency (not "changed on first run").
+# Original enablement/active state is captured and restored on cleanup.
 #
 # Usage:
 #   ansible-playbook -i inventory playbooks/test_service.yml --module-path library
 - hosts: all
   gather_facts: true
   vars:
-    svc_unit: "{{ 'cron' if ansible_os_family == 'Debian' else 'cronie' }}"
+    svc_unit: "{{ 'cron' if ansible_os_family == 'Debian' else 'crond' }}"
   tasks:
     - name: Check service is manageable (systemctl present)
-      ansible.builtin.command: command -v systemctl
+      ansible.builtin.command: which -s systemctl
       register: svc_cmd
       changed_when: false
       failed_when: false
@@ -21,7 +25,21 @@
         msg: "systemctl not available — skipping bash.service tests"
       when: svc_cmd.rc != 0
 
-    - name: bash.service — start + enable {{ svc_unit }} (run1, expect changed)
+    - name: Capture original enabled state
+      ansible.builtin.command: "systemctl is-enabled {{ svc_unit }}"
+      register: svc_orig_enabled
+      changed_when: false
+      failed_when: false
+      when: svc_cmd.rc == 0
+
+    - name: Capture original active state
+      ansible.builtin.command: "systemctl is-active {{ svc_unit }}"
+      register: svc_orig_active
+      changed_when: false
+      failed_when: false
+      when: svc_cmd.rc == 0
+
+    - name: bash.service — start + enable {{ svc_unit }} (run1)
       bash.service:
         name: "{{ svc_unit }}"
         state: started
@@ -37,18 +55,24 @@
       register: svc_r2
       when: svc_cmd.rc == 0
 
-    - name: ASSERT — start/enable changed first, idempotent after
+    - name: ASSERT — start/enable succeeded and is idempotent on re-run
       ansible.builtin.assert:
         that:
-          - svc_r1 is changed and svc_r1 is success
+          - svc_r1 is success
           - svc_r2 is not changed and svc_r2 is success
         fail_msg: "bash.service test failed"
       when: svc_cmd.rc == 0
 
-    - name: CLEANUP — stop + disable {{ svc_unit }} (always)
+    - name: CLEANUP — restore original enabled state (always)
       bash.service:
         name: "{{ svc_unit }}"
-        state: stopped
-        enabled: false
+        enabled: "{{ (svc_orig_enabled.stdout == 'enabled') | string }}"
+      when: svc_cmd.rc == 0
+      failed_when: false
+
+    - name: CLEANUP — restore original active state (always)
+      bash.service:
+        name: "{{ svc_unit }}"
+        state: "{{ 'started' if svc_orig_active.stdout == 'active' else 'stopped' }}"
       when: svc_cmd.rc == 0
       failed_when: false

@@ -14,7 +14,7 @@
     fw_service: https
   tasks:
     - name: Check firewall-cmd availability
-      ansible.builtin.command: command -v firewall-cmd
+      ansible.builtin.command: which -s firewall-cmd
       register: fw_cmd
       changed_when: false
       failed_when: false

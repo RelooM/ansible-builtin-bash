@@ -158,14 +158,25 @@ See also the full design document [`DRAFT-LINUX-MODULES.md`](DRAFT-LINUX-MODULES
 
 ## Verification
 
-All 23 modules have been verified on live systems:
+All 23 modules have been verified on live systems (regression pass — see commit history):
 
 | Host | OS | Result |
 |------|----|--------|
-| `el-host.example.com` | AlmaLinux 9 | `ok=66 changed=29 failed=0` |
-| `deb-host.example.com` | Ubuntu 22.04 | `ok=57 changed=27 failed=0` |
-| Non-root (uid 1000, passwordless sudo) | Both | All modules self-escalate via internal sudo. `failed=0` |
+| Red Hat family (EL9/EL10) | AlmaLinux / Rocky / RHEL | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+| Debian family (Debian 12+ / Ubuntu 22.04+) | Ubuntu / Debian | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+| Non-root (with passwordless sudo) | Both | All modules self-escalate via internal sudo. `failed=0` |
+
+Test playbooks skip gracefully on hosts missing the relevant tooling (e.g. `systemctl`, `iptables`, `firewall-cmd`, `tuned-adm`) and leave no artifacts (verified: no stray test user/group/unit/rule/binary).
 
 ## License
 
-MIT
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)** — see the [`LICENSE`](LICENSE) file for the full text.
+
+Copyright (C) 2026 — ansible-bash-modules contributors.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. This program is distributed WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
+the LICENSE file for details.

@@ -1,4 +1,7 @@
 #!/usr/bin/bash
+# Copyright (C) 2026 ansible-bash-modules contributors
+# This program is free software under the GNU GPL v3.0+ (see LICENSE).
+# SPDX-License-Identifier: GPL-3.0-or-later
 # ---- Ansible-native args bridge ----
 # Modern ansible-core invokes modules as `<module> <tmp_args_file>`, writing a
 # single line of space-separated `key=value` args (plus _ansible_* control keys)

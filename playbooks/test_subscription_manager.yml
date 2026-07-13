@@ -11,7 +11,7 @@
   gather_facts: true
   tasks:
     - name: Check subscription-manager availability
-      ansible.builtin.command: command -v subscription-manager
+      ansible.builtin.command: which -s subscription-manager
       register: subs_cmd
       changed_when: false
       failed_when: false

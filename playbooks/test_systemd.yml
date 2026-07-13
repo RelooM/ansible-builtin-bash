@@ -11,7 +11,7 @@
     unit_name: bashmods-test.service
   tasks:
     - name: Check systemctl availability
-      ansible.builtin.command: command -v systemctl
+      ansible.builtin.command: which -s systemctl
       register: sys_cmd
       changed_when: false
       failed_when: false
@@ -21,11 +21,25 @@
         msg: "systemctl not available — skipping bash.systemd tests"
       when: sys_cmd.rc != 0
 
+    - name: Create harmless test unit file
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ unit_name }}"
+        content: |
+          [Unit]
+          Description=bashmods test unit (no-op)
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/true
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0644"
+      when: sys_cmd.rc == 0
+
     - name: bash.systemd — create + enable unit (run1, expect changed)
       bash.systemd:
         name: "{{ unit_name }}"
         enabled: true
-        state: present
+        state: enabled
         daemon_reload: true
       register: sysd_r1
       when: sys_cmd.rc == 0
@@ -34,8 +48,7 @@
       bash.systemd:
         name: "{{ unit_name }}"
         enabled: true
-        state: present
-        daemon_reload: true
+        state: enabled
       register: sysd_r2
       when: sys_cmd.rc == 0
 
@@ -51,7 +64,14 @@
       bash.systemd:
         name: "{{ unit_name }}"
         enabled: false
-        state: absent
+        state: disabled
         daemon_reload: true
+      when: sys_cmd.rc == 0
+      failed_when: false
+
+    - name: CLEANUP — remove unit file (always)
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ unit_name }}"
+        state: absent
       when: sys_cmd.rc == 0
       failed_when: false

@@ -42,11 +42,11 @@ done
 
 | Playbook | Module | Family | Covers | Self-reverts by | Notes |
 |----------|--------|--------|--------|-----------------|-------|
-| `test_apt.yml` | `bash.apt` | Debian | install (1 + multi), latest, absent + idempotent, `update_cache` | removes test packages (`post_tasks`) | `--limit debian` |
+| `test_apt.yml` | `bash.apt` | Debian | install (1 + multi), latest, absent + idempotent, `update_cache` | removes test packages (`post_tasks`) | `--limit debian`; `pre_tasks` ensure a clean baseline so the first install reports `changed` |
 | `test_deb822_repository.yml` | `bash.deb822_repository` | Debian | create enabled/disabled `.sources`, idempotency | removes both repos (`always`) | `--limit debian` |
 | `test_debconf.yml` | `bash.debconf` | Debian | set boolean selection, idempotency | clears value (`always`) | skipped if `debconf` tooling missing |
 | `test_dpkg.yml` | `bash.dpkg` | Debian | install local `.deb`, idempotency | purges pkg + removes `.deb` (`always`) | downloads sample `.deb` via `bash.get_url`; skips gracefully if mirror differs |
-| `test_dnf.yml` | `bash.dnf` | RHEL | install (1 + multi), latest, `update_cache`, `autoremove`, absent + idempotent | removes test pkgs + `autoremove` (`post_tasks`) | `--limit redhat` |
+| `test_dnf.yml` | `bash.dnf` | RHEL | install (1 + multi), latest, `update_cache`, `autoremove`, absent + idempotent | removes test pkgs + `autoremove` (`post_tasks`) | `--limit redhat`; `pre_tasks` ensure a clean baseline so the first install reports `changed` |
 | `test_firewalld.yml` | `bash.firewalld` | RHEL | add port + service (permanent + immediate), idempotency | removes port + service (`always`) | skipped if `firewall-cmd` missing |
 | `test_selinux.yml` | `bash.selinux` | RHEL | set `permissive`, idempotency | restores original state (`always`) | skipped if SELinux disabled/absent |
 | `test_tuned.yml` | `bash.tuned` | RHEL | switch profile, idempotency | restores original profile (`always`) | skipped if `tuned-adm` missing |
@@ -56,9 +56,9 @@ done
 | `test_user.yml` | `bash.user` | Cross | create, set password, idempotency | removes user + home (`always`) | generates throwaway pw hash |
 | `test_sysctl.yml` | `bash.sysctl` | Cross | set param, idempotency | removes entry + restores live value (`always`) | |
 | `test_lineinfile.yml` | `bash.lineinfile` | Cross | present, idempotent, absent | removes temp file (`always`) | |
-| `test_iptables.yml` | `bash.iptables` | Cross | add rule (tagged), idempotency | removes rule (`always`) | skipped if `iptables` missing |
-| `test_service.yml` | `bash.service` | Cross | start + enable, idempotency | stop + disable (`always`) | auto-picks `cron`/`cronie`; skips if no `systemctl` |
-| `test_systemd.yml` | `bash.systemd` | Cross | create + enable unit, idempotency | disable + remove unit (`always`) | skipped if no `systemctl` |
+| `test_iptables.yml` | `bash.iptables` | Cross | add rule, idempotency | removes rule (`always`) | skipped if `iptables` missing; gate uses `which -s` (not the `command -v` shell builtin); no `comment:` param (unsupported) |
+| `test_service.yml` | `bash.service` | Cross | start + enable, idempotency | restores original enabled/active state (`always`) | auto-picks `cron`/`cronie`; skips if no `systemctl`; assert requires success + idempotency (not "changed") since cron may already be running |
+| `test_systemd.yml` | `bash.systemd` | Cross | create + enable unit, idempotency | disables + removes unit file (`always`) | skipped if no `systemctl`; creates a harmless `bashmods-test.service` (removed in cleanup); `daemon_reload` only on first run so idempotency holds |
 | `test_timezone.yml` | `bash.timezone` | Cross | set TZ (UTC), idempotency | restores original TZ (`always`) | |
 | `test_get_url.yml` | `bash.get_url` | Cross (JSON) | download to file + nested dir, idempotency | removes files (`always`) | ships `library/` → `/tmp/bashmods` |
 | `test_hostname.yml` | `bash.hostname` | Cross (JSON) | set hostname, idempotency | restores original hostname (`always`) | ships `library/` → `/tmp/bashmods` |

@@ -13,7 +13,7 @@
     test_profile: balanced
   tasks:
     - name: Check tuned-adm availability
-      ansible.builtin.command: command -v tuned-adm
+      ansible.builtin.command: which -s tuned-adm
       register: tuned_cmd
       changed_when: false
       failed_when: false

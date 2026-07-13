@@ -9,13 +9,14 @@
 - hosts: all
   gather_facts: true
   vars:
+    moddir: /tmp/bashmods
     kh_host: example.bashmods.test
     kh_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGNOREME000000000000000000000000000000 bashmods-test"
   tasks:
     - name: Ship library/ to target
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../library/"
-        dest: /tmp/bashmods/
+        dest: "{{ moddir }}/"
         mode: "0755"
       become: false
 
@@ -42,4 +43,10 @@
       ansible.builtin.command: /tmp/bashmods/bash.known_hosts.sh
       environment:
         ARGS_JSON: '{"name": "{{ kh_host }}", "key": "{{ kh_key }}", "state": "absent", "use_sudo": "false"}'
+      failed_when: false
+
+    - name: CLEANUP — remove shipped module dir (always)
+      ansible.builtin.file:
+        path: "{{ moddir }}"
+        state: absent
       failed_when: false

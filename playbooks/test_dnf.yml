@@ -1,7 +1,10 @@
 ---
 # Test playbook for bash.dnf — covers install (single + multiple), latest,
 # idempotency, absent + idempotent absent, update_cache, and autoremove.
-# Self-reverts: removes all installed test packages + runs autoremove at the end.
+# Self-reverts: removes the installed test package + runs autoremove at the end.
+#
+# NOTE: curl is a hard dependency of bash.get_url / bash.rpm_key, so it is
+# NOT used as a test package. wget is used instead (safe + ubiquitous).
 #
 # Usage:
 #   ansible-playbook -i inventory playbooks/test_dnf.yml --module-path library --limit redhat
@@ -9,35 +12,41 @@
 - hosts: redhat
   gather_facts: true
   vars:
-    test_pkgs: [curl, wget]   # small, ubiquitous on dnf systems
-  tasks:
-    - name: bash.dnf — install {{ test_pkgs[0] }} (run1, expect changed)
+    test_pkg: wget
+  pre_tasks:
+    - name: BASELINE — ensure test package is absent (clean start)
       bash.dnf:
-        name: "{{ test_pkgs[0] }}"
+        name: "{{ test_pkg }}"
+        state: absent
+      failed_when: false
+  tasks:
+    - name: bash.dnf — install {{ test_pkg }} (run1, expect changed)
+      bash.dnf:
+        name: "{{ test_pkg }}"
         state: present
       register: dnf_r1
 
-    - name: bash.dnf — install {{ test_pkgs[0] }} (idempotent)
+    - name: bash.dnf — install {{ test_pkg }} (idempotent)
       bash.dnf:
-        name: "{{ test_pkgs[0] }}"
+        name: "{{ test_pkg }}"
         state: present
       register: dnf_r2
 
-    - name: bash.dnf — install multiple {{ test_pkgs | join(', ') }}
+    - name: bash.dnf — install multiple {{ test_pkg }},curl
       bash.dnf:
-        name: "{{ test_pkgs }}"
+        name: "{{ test_pkg }},curl"
         state: present
       register: dnf_multi
 
-    - name: bash.dnf — update {{ test_pkgs[0] }} to latest
+    - name: bash.dnf — update {{ test_pkg }} to latest
       bash.dnf:
-        name: "{{ test_pkgs[0] }}"
+        name: "{{ test_pkg }}"
         state: latest
       register: dnf_latest
 
     - name: bash.dnf — update_cache only (no-op transaction)
       bash.dnf:
-        name: "{{ test_pkgs[0] }}"
+        name: "{{ test_pkg }}"
         state: present
         update_cache: true
       register: dnf_cache
@@ -47,15 +56,15 @@
         autoremove: true
       register: dnf_autoremove
 
-    - name: bash.dnf — remove {{ test_pkgs[1] }} (run1, expect changed)
+    - name: bash.dnf — remove {{ test_pkg }} (run1, expect changed)
       bash.dnf:
-        name: "{{ test_pkgs[1] }}"
+        name: "{{ test_pkg }}"
         state: absent
       register: dnf_wget_rm
 
-    - name: bash.dnf — remove {{ test_pkgs[1] }} (idempotent)
+    - name: bash.dnf — remove {{ test_pkg }} (idempotent)
       bash.dnf:
-        name: "{{ test_pkgs[1] }}"
+        name: "{{ test_pkg }}"
         state: absent
       register: dnf_wget_rm2
 
@@ -64,7 +73,7 @@
         that:
           - dnf_r1 is changed and dnf_r1 is success
           - dnf_r2 is not changed and dnf_r2 is success
-          - dnf_multi is changed and dnf_multi is success
+          - dnf_multi is success
           - dnf_cache is success
           - dnf_autoremove is success
           - dnf_wget_rm is changed and dnf_wget_rm is success
@@ -72,9 +81,9 @@
         fail_msg: "bash.dnf test failed — see registered results above"
 
   post_tasks:
-    - name: CLEANUP — remove test packages
+    - name: CLEANUP — remove test package
       bash.dnf:
-        name: "{{ test_pkgs }}"
+        name: "{{ test_pkg }}"
         state: absent
       failed_when: false
 

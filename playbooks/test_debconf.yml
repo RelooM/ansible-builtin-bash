@@ -13,7 +13,7 @@
     dc_key: "bash/sh"
   tasks:
     - name: Check debconf tooling
-      ansible.builtin.command: command -v debconf-get-selections
+      ansible.builtin.command: which -s debconf-get-selections
       register: dc_cmd
       changed_when: false
       failed_when: false

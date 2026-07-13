@@ -10,7 +10,7 @@
   gather_facts: true
   tasks:
     - name: Check SELinux tooling
-      ansible.builtin.command: command -v getenforce
+      ansible.builtin.command: which -s getenforce
       register: se_cmd
       changed_when: false
       failed_when: false

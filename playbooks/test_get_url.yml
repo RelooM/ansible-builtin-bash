@@ -54,3 +54,9 @@
         state: absent
       loop: "{{ dest_files }}"
       failed_when: false
+
+    - name: CLEANUP — remove shipped module dir (always)
+      ansible.builtin.file:
+        path: "{{ moddir }}"
+        state: absent
+      failed_when: false

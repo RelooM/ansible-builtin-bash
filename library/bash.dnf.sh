@@ -1,4 +1,7 @@
 #!/usr/bin/bash
+# Copyright (C) 2026 ansible-bash-modules contributors
+# This program is free software under the GNU GPL v3.0+ (see LICENSE).
+# SPDX-License-Identifier: GPL-3.0-or-later
 # ---- Ansible-native args bridge ----
 # Modern ansible-core invokes modules as `<module> <tmp_args_file>`, writing a
 # single line of space-separated `key=value` args (plus _ansible_* control keys)
@@ -269,9 +272,12 @@ emit_result() {
 # ---- Helper: JSON-safe string quoting (Bash-native, no jq dependency) ----
 jq_safe() {
   local s="$1"
-  # Escape backslashes, newlines, tabs, and double-quotes
+  # Escape backslashes, newlines, tabs, CR, and double-quotes (JSON-safe)
   s="${s//\\/\\\\}"
   s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
   printf '"%s"' "$s"
 }
 

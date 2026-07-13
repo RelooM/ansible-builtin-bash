@@ -9,13 +9,14 @@
 - hosts: redhat
   gather_facts: true
   vars:
+    moddir: /tmp/bashmods
     repo_name: bashmods-test
     repo_baseurl: "http://mirror.centos.org/centos/$releasever/AppStream/$basearch/os/"
   tasks:
     - name: Ship library/ to target
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../library/"
-        dest: /tmp/bashmods/
+        dest: "{{ moddir }}/"
         mode: "0755"
       become: false
 
@@ -52,4 +53,10 @@
       loop:
         - "{{ repo_name }}"
         - "{{ repo_name }}-off"
+      failed_when: false
+
+    - name: CLEANUP — remove shipped module dir (always)
+      ansible.builtin.file:
+        path: "{{ moddir }}"
+        state: absent
       failed_when: false

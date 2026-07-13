@@ -8,11 +8,13 @@
 #   ansible-playbook -i inventory playbooks/test_hostname.yml --module-path library
 - hosts: all
   gather_facts: true
+  vars:
+    moddir: /tmp/bashmods
   tasks:
     - name: Ship library/ to target
       ansible.builtin.copy:
         src: "{{ playbook_dir }}/../library/"
-        dest: /tmp/bashmods/
+        dest: "{{ moddir }}/"
         mode: "0755"
       become: false
 
@@ -49,4 +51,10 @@
       ansible.builtin.command: /tmp/bashmods/bash.hostname.sh
       environment:
         ARGS_JSON: '{"name": "{{ hn_orig }}", "use_sudo": "auto"}'
+      failed_when: false
+
+    - name: CLEANUP — remove shipped module dir (always)
+      ansible.builtin.file:
+        path: "{{ moddir }}"
+        state: absent
       failed_when: false
