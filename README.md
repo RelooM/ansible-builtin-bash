@@ -155,10 +155,17 @@ Each module's full parameter reference, state mapping, idempotency strategy, and
 | Module | Doc | Module | Doc |
 |--------|-----|--------|-----|
 | `bash.dnf` | [`docs/bash.dnf.md`](docs/bash.dnf.md) | `bash.apt` | [`docs/bash.apt.md`](docs/bash.apt.md) |
-| `bash.systemd` | [`docs/bash.systemd.md`](docs/bash.systemd.md) | `bash.group` | [`docs/bash.group.md`](docs/bash.group.md) |
-| `bash.user` | [`docs/bash.user.md`](docs/bash.user.md) | `bash.dpkg` | [`docs/bash.dpkg.md`](docs/bash.dpkg.md) |
-
-See also the full design document [`DRAFT-LINUX-MODULES.md`](DRAFT-LINUX-MODULES.md) for architecture decisions, cross-reference of all Ansible built-in modules, and implementation patterns.
+| `bash.dpkg` | [`docs/bash.dpkg.md`](docs/bash.dpkg.md) | `bash.deb822_repository` | [`docs/bash.deb822_repository.md`](docs/bash.deb822_repository.md) |
+| `bash.rpm_key` | [`docs/bash.rpm_key.md`](docs/bash.rpm_key.md) | `bash.yum_repository` | [`docs/bash.yum_repository.md`](docs/bash.yum_repository.md) |
+| `bash.subscription_manager` | [`docs/bash.subscription_manager.md`](docs/bash.subscription_manager.md) | `bash.systemd` | [`docs/bash.systemd.md`](docs/bash.systemd.md) |
+| `bash.service` | [`docs/bash.service.md`](docs/bash.service.md) | `bash.group` | [`docs/bash.group.md`](docs/bash.group.md) |
+| `bash.user` | [`docs/bash.user.md`](docs/bash.user.md) | `bash.hostname` | [`docs/bash.hostname.md`](docs/bash.hostname.md) |
+| `bash.timezone` | [`docs/bash.timezone.md`](docs/bash.timezone.md) | `bash.reboot` | [`docs/bash.reboot.md`](docs/bash.reboot.md) |
+| `bash.sysctl` | [`docs/bash.sysctl.md`](docs/bash.sysctl.md) | `bash.tuned` | [`docs/bash.tuned.md`](docs/bash.tuned.md) |
+| `bash.debconf` | [`docs/bash.debconf.md`](docs/bash.debconf.md) | `bash.firewalld` | [`docs/bash.firewalld.md`](docs/bash.firewalld.md) |
+| `bash.selinux` | [`docs/bash.selinux.md`](docs/bash.selinux.md) | `bash.iptables` | [`docs/bash.iptables.md`](docs/bash.iptables.md) |
+| `bash.known_hosts` | [`docs/bash.known_hosts.md`](docs/bash.known_hosts.md) | `bash.get_url` | [`docs/bash.get_url.md`](docs/bash.get_url.md) |
+| `bash.lineinfile` | [`docs/bash.lineinfile.md`](docs/bash.lineinfile.md) | | |
 
 ## Verification
 
