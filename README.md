@@ -2,6 +2,10 @@
 
 A collection of Ansible modules written entirely in **Bash** — no Python, no pip, no virtualenvs. Designed for minimal and embedded Linux systems where standard Ansible builtins can't run.
 
+[![License: GPL v3](https://img.shields.io/github/license/RelooM/ansible-builtin-bash)](LICENSE)
+![Built with Bash](https://img.shields.io/badge/built%20with-Bash-1f425f)
+![Platform](https://img.shields.io/badge/platform-Linux%20%2F%20POSIX-lightgrey)
+
 ## Features
 
 - **Zero runtime dependencies** — Only Bash and standard POSIX tools
