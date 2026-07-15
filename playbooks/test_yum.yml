@@ -1,0 +1,97 @@
+---
+# Test playbook for bash.yum — covers install (single + multiple), latest,
+# idempotency, absent + idempotent absent, update_cache, and autoremove.
+# Self-reverts: removes the installed test package + runs autoremove at the end.
+#
+# NOTE: wget is used as the test package (not curl — curl is a hard dependency
+# of bash.get_url / bash.rpm_key, so it is not exercised here).
+#
+# Usage:
+#   ansible-playbook -i inventory playbooks/test_yum.yml --module-path library --limit redhat
+# No `become:` needed — the module escalates via internal sudo -n.
+#
+# Backend note: on RHEL/CentOS 7 the module uses the real `yum`; on dnf-based
+# hosts (AlmaLinux/Rocky/RHEL 8+) it auto-detects `dnf`. Both paths are exercised
+# identically from the playbook's perspective.
+- hosts: redhat
+  gather_facts: true
+  vars:
+    test_pkg: wget
+  pre_tasks:
+    - name: BASELINE — ensure test package is absent (clean start)
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: absent
+      failed_when: false
+  tasks:
+    - name: bash.yum — install {{ test_pkg }} (run1, expect changed)
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: present
+      register: yum_r1
+
+    - name: bash.yum — install {{ test_pkg }} (idempotent)
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: present
+      register: yum_r2
+
+    - name: bash.yum — install multiple {{ test_pkg }},tree
+      bash.yum:
+        name: "{{ test_pkg }},tree"
+        state: present
+      register: yum_multi
+
+    - name: bash.yum — update {{ test_pkg }} to latest
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: latest
+      register: yum_latest
+
+    - name: bash.yum — update_cache only (no-op transaction)
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: present
+        update_cache: true
+      register: yum_cache
+
+    - name: bash.yum — autoremove leaf dependencies
+      bash.yum:
+        autoremove: true
+      register: yum_autoremove
+
+    - name: bash.yum — remove {{ test_pkg }} (run1, expect changed)
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: absent
+      register: yum_wget_rm
+
+    - name: bash.yum — remove {{ test_pkg }} (idempotent)
+      bash.yum:
+        name: "{{ test_pkg }}"
+        state: absent
+      register: yum_wget_rm2
+
+    - name: ASSERT — changed on first install, idempotent on re-run, no failures
+      ansible.builtin.assert:
+        that:
+          - yum_r1 is changed and yum_r1 is success
+          - yum_r2 is not changed and yum_r2 is success
+          - yum_multi is success
+          - yum_cache is success
+          - yum_autoremove is success
+          - yum_wget_rm is changed and yum_wget_rm is success
+          - yum_wget_rm2 is not changed and yum_wget_rm2 is success
+        fail_msg: "bash.yum test failed — see registered results above"
+
+  post_tasks:
+    - name: CLEANUP — remove test packages (incl. multi pkg)
+      bash.yum:
+        name: "{{ test_pkg }},tree"
+        state: absent
+      failed_when: false
+
+    - name: CLEANUP — autoremove
+      bash.yum:
+        autoremove: true
+      failed_when: false

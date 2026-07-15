@@ -27,7 +27,7 @@ done
 
 ### Two invocation styles
 
-- **Token modules (19 of 23)** — invoked as native FQCN tasks, e.g.
+- **Token modules (20 of 24)** — invoked as native FQCN tasks, e.g.
   `bash.dnf: { name: curl, state: present }`. Ansible resolves them through
   `--module-path library`. No file transfer needed.
 - **JSON modules (4):** `bash.get_url`, `bash.hostname`, `bash.known_hosts`,
@@ -47,6 +47,7 @@ done
 | `test_debconf.yml` | `bash.debconf` | Debian | set boolean selection, idempotency | clears value (`always`) | skipped if `debconf` tooling missing |
 | `test_dpkg.yml` | `bash.dpkg` | Debian | install local `.deb`, idempotency | purges pkg + removes `.deb` (`always`) | downloads sample `.deb` via `bash.get_url`; skips gracefully if mirror differs |
 | `test_dnf.yml` | `bash.dnf` | RHEL | install (1 + multi), latest, `update_cache`, `autoremove`, absent + idempotent | removes test pkgs + `autoremove` (`post_tasks`) | `--limit redhat`; `pre_tasks` ensure a clean baseline so the first install reports `changed` |
+| `test_yum.yml` | `bash.yum` | RHEL | install (1 + multi), latest, `update_cache`, `autoremove`, absent + idempotent | removes test pkgs + `autoremove` (`post_tasks`) | `--limit redhat`; `pre_tasks` ensure a clean baseline so the first install reports `changed`; auto-detects `yum` (EL7) vs `dnf`, dnf-only flags skipped on legacy yum |
 | `test_firewalld.yml` | `bash.firewalld` | RHEL | add port + service (permanent + immediate), idempotency | removes port + service (`always`) | skipped if `firewall-cmd` missing |
 | `test_selinux.yml` | `bash.selinux` | RHEL | set `permissive`, idempotency | restores original state (`always`) | skipped if SELinux disabled/absent |
 | `test_tuned.yml` | `bash.tuned` | RHEL | switch profile, idempotency | restores original profile (`always`) | skipped if `tuned-adm` missing |

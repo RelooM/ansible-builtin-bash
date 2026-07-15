@@ -1,1 +1,1 @@
-Pure-Bash Ansible modules — zero Python dependencies for minimal & embedded Linux
+Pure-Bash Ansible modules (FQCN bash.*) — zero Python, for minimal & embedded Linux. Covers apt/dnf/yum, systemd, SELinux, firewalld, iptables and more. Internal sudo escalation, no become required.
