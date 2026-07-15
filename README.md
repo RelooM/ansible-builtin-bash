@@ -5,6 +5,10 @@ A collection of Ansible modules written entirely in **Bash** — no Python, no p
 [![License: GPL v3](https://img.shields.io/github/license/RelooM/ansible-builtin-bash)](LICENSE)
 ![Built with Bash](https://img.shields.io/badge/built%20with-Bash-1f425f)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%2F%20POSIX-lightgrey)
+[![Modules](https://img.shields.io/badge/modules-24%20pure%20Bash-1f425f)](library)
+![RHEL7 / yum](https://img.shields.io/badge/RHEL%207%20%2F%20yum-supported-blue)
+![Ansible](https://img.shields.io/badge/Ansible-FQCN--ready-000000)
+[![Tested on](https://img.shields.io/badge/tested%20on-AlmaLinux%20%2F%20Ubuntu-blue)](playbooks)
 
 ## Features
 
@@ -45,8 +49,9 @@ ansible-playbook -i inventory playbook.yml --module-path /path/to/ansible-bash-m
 
 | Module | Distro | Replaces | Description |
 |--------|--------|----------|-------------|
-| `bash.dnf` | 🔴 RHEL/Fedora | `ansible.builtin.dnf` | Install, remove, update, repos, groups, security/bugfix filters, autoremove, download-only. Auto-detects dnf4 vs dnf5 |
-| `bash.apt` | 🟢 Debian/Ubuntu | `ansible.builtin.apt` | Install, remove, upgrade, dist-upgrade, local `.deb` files, autoremove, purge, cache management, lock timeout |
+|| `bash.dnf` | 🔴 RHEL/Fedora | `ansible.builtin.dnf` | Install, remove, update, repos, groups, security/bugfix filters, autoremove, download-only. Auto-detects dnf4 vs dnf5 |
+|| `bash.yum` | 🔴 RHEL/CentOS 7 | `ansible.builtin.yum` | Install, remove, update, repos, groups, excludes, gpg, cache, autoremove. Auto-detects `yum` (EL7) vs `dnf`; dnf-only flags skipped on legacy yum |
+|| `bash.apt` | 🟢 Debian/Ubuntu | `ansible.builtin.apt` | Install, remove, upgrade, dist-upgrade, local `.deb` files, autoremove, purge, cache management, lock timeout |
 | `bash.dpkg` | 🟢 Debian/Ubuntu | `ansible.builtin.dpkg_selections` | Package selection state (`hold`/`install`/`deinstall`/`purge`) and `.deb` file install/remove |
 | `bash.deb822_repository` | 🟢 Debian/Ubuntu | `ansible.builtin.deb822_repository` | Manage deb822 `.sources` files in `/etc/apt/sources.list.d/`. Replaces legacy `apt_repository` |
 | `bash.rpm_key` | 🔴 RHEL/Fedora | `ansible.builtin.rpm_key` | Import and remove RPM GPG keys (`rpm --import`) |
@@ -96,6 +101,7 @@ All modules handle `sudo` internally — **no `become: yes`** in your playbooks.
 ```sudo
 # /etc/sudoers.d/ansible-bash-modules
 deploy ALL=(root) NOPASSWD: /usr/bin/dnf install *, /usr/bin/dnf remove *, /usr/bin/dnf update *
+deploy ALL=(root) NOPASSWD: /usr/bin/yum install *, /usr/bin/yum remove *, /usr/bin/yum update *
 deploy ALL=(root) NOPASSWD: /usr/bin/apt-get *, /usr/bin/dpkg -i *
 deploy ALL=(root) NOPASSWD: /usr/bin/systemctl *, /usr/sbin/service *
 deploy ALL=(root) NOPASSWD: /usr/sbin/useradd *, /usr/sbin/userdel *, /usr/sbin/usermod *
@@ -155,6 +161,7 @@ Each module's full parameter reference, state mapping, idempotency strategy, and
 | Module | Doc | Module | Doc |
 |--------|-----|--------|-----|
 | `bash.dnf` | [`docs/bash.dnf.md`](docs/bash.dnf.md) | `bash.apt` | [`docs/bash.apt.md`](docs/bash.apt.md) |
+| `bash.yum` | [`docs/bash.yum.md`](docs/bash.yum.md) | | |
 | `bash.dpkg` | [`docs/bash.dpkg.md`](docs/bash.dpkg.md) | `bash.deb822_repository` | [`docs/bash.deb822_repository.md`](docs/bash.deb822_repository.md) |
 | `bash.rpm_key` | [`docs/bash.rpm_key.md`](docs/bash.rpm_key.md) | `bash.yum_repository` | [`docs/bash.yum_repository.md`](docs/bash.yum_repository.md) |
 | `bash.subscription_manager` | [`docs/bash.subscription_manager.md`](docs/bash.subscription_manager.md) | `bash.systemd` | [`docs/bash.systemd.md`](docs/bash.systemd.md) |
@@ -169,12 +176,13 @@ Each module's full parameter reference, state mapping, idempotency strategy, and
 
 ## Verification
 
-All 23 modules have been verified on live systems (regression pass — see commit history):
+All 24 modules have been verified on live systems (regression pass — see commit history):
 
 | Host | OS | Result |
 |------|----|--------|
-| Red Hat family (EL9/EL10) | AlmaLinux / Rocky / RHEL | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
-| Debian family (Debian 12+ / Ubuntu 22.04+) | Ubuntu / Debian | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+|| Red Hat family (EL9/EL10) | AlmaLinux / Rocky / RHEL | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+|| Debian family (Debian 12+ / Ubuntu 22.04+) | Ubuntu / Debian | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+|| RHEL / CentOS 7 (legacy `yum`) | yum-based hosts | `bash.yum` exercises the identical playbook path; dnf-only flags are skipped so the generated yum command is always valid |
 | Non-root (with passwordless sudo) | Both | All modules self-escalate via internal sudo. `failed=0` |
 
 Test playbooks skip gracefully on hosts missing the relevant tooling (e.g. `systemctl`, `iptables`, `firewall-cmd`, `tuned-adm`) and leave no artifacts (verified: no stray test user/group/unit/rule/binary).
