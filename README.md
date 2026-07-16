@@ -5,7 +5,7 @@ A collection of Ansible modules written entirely in **Bash** — no Python, no p
 [![License: GPL v3](https://img.shields.io/github/license/RelooM/ansible-builtin-bash)](LICENSE)
 ![Built with Bash](https://img.shields.io/badge/built%20with-Bash-1f425f)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%2F%20POSIX-lightgrey)
-[![Modules](https://img.shields.io/badge/modules-24%20pure%20Bash-1f425f)](library)
+[![Modules](https://img.shields.io/badge/modules-25%20pure%20Bash-1f425f)](library)
 ![RHEL7 / yum](https://img.shields.io/badge/RHEL%207%20%2F%20yum-supported-blue)
 ![Ansible](https://img.shields.io/badge/Ansible-FQCN--ready-000000)
 [![Tested on](https://img.shields.io/badge/tested%20on-AlmaLinux%20%2F%20Ubuntu-blue)](playbooks)
@@ -176,7 +176,7 @@ Each module's full parameter reference, state mapping, idempotency strategy, and
 
 ## Verification
 
-All 24 modules have been verified on live systems (regression pass — see commit history):
+All 25 modules have been verified on live systems (regression pass — see commit history):
 
 | Host | OS | Result |
 |------|----|--------|

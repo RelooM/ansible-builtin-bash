@@ -7,6 +7,7 @@ Each file in this directory is an executable Ansible module written in Bash — 
 | Module | File | Lines | Distro | Replaces | Description |
 |--------|------|------:|--------|----------|-------------|
 | `bash.dnf` | `bash.dnf.sh` | 980 | 🔴 RHEL | `ansible.builtin.dnf` | Package management — install, remove, update, repos, groups, security/bugfix filters, autoremove, download-only, dnf4/dnf5 auto-detection |
+| `bash.yum` | `bash.yum.sh` | 1053 | 🔴 RHEL | `ansible.builtin.yum` | Install, remove, update, repos, groups, excludes, gpg, cache, autoremove. Auto-detects `yum` (EL7) vs `dnf`; dnf-only flags skipped on legacy yum |
 | `bash.apt` | `bash.apt.sh` | 725 | 🟢 Debian | `ansible.builtin.apt` | Package management — install, remove, upgrade, dist-upgrade, local `.deb`, autoremove, purge, cache, lock timeout |
 | `bash.dpkg` | `bash.dpkg.sh` | 494 | 🟢 Debian | `ansible.builtin.dpkg_selections` | Package selection state (`hold`/`install`/`deinstall`/`purge`) and `.deb` file install/remove |
 | `bash.deb822_repository` | `bash.deb822_repository.sh` | 799 | 🟢 Debian | `ansible.builtin.deb822_repository` | Manage deb822 `.sources` files in `/etc/apt/sources.list.d/` |
@@ -36,6 +37,7 @@ Each file in this directory is an executable Ansible module written in Bash — 
 | Module | Doc File | Module | Doc File |
 |--------|----------|--------|----------|
 | `bash.dnf` | [`bash.dnf.md`](../docs/bash.dnf.md) | `bash.apt` | [`bash.apt.md`](../docs/bash.apt.md) |
+| `bash.yum` | [`bash.yum.md`](../docs/bash.yum.md) | | |
 | `bash.systemd` | [`bash.systemd.md`](../docs/bash.systemd.md) | `bash.service` | [`bash.service.md`](../docs/bash.service.md) |
 | `bash.group` | [`bash.group.md`](../docs/bash.group.md) | `bash.user` | [`bash.user.md`](../docs/bash.user.md) |
 | `bash.dpkg` | [`bash.dpkg.md`](../docs/bash.dpkg.md) | `bash.deb822_repository` | [`bash.deb822_repository.md`](../docs/bash.deb822_repository.md) |
