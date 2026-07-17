@@ -49,9 +49,9 @@ ansible-playbook -i inventory playbook.yml --module-path /path/to/ansible-bash-m
 
 | Module | Distro | Replaces | Description |
 |--------|--------|----------|-------------|
-|| `bash.dnf` | 🔴 RHEL/Fedora | `ansible.builtin.dnf` | Install, remove, update, repos, groups, security/bugfix filters, autoremove, download-only. Auto-detects dnf4 vs dnf5 |
-|| `bash.yum` | 🔴 RHEL/CentOS 7 | `ansible.builtin.yum` | Install, remove, update, repos, groups, excludes, gpg, cache, autoremove. Auto-detects `yum` (EL7) vs `dnf`; dnf-only flags skipped on legacy yum |
-|| `bash.apt` | 🟢 Debian/Ubuntu | `ansible.builtin.apt` | Install, remove, upgrade, dist-upgrade, local `.deb` files, autoremove, purge, cache management, lock timeout |
+| `bash.dnf` | 🔴 RHEL/Fedora | `ansible.builtin.dnf` | Install, remove, update, repos, groups, security/bugfix filters, autoremove, download-only. Auto-detects dnf4 vs dnf5 |
+| `bash.yum` | 🔴 RHEL/CentOS 7 | `ansible.builtin.yum` | Install, remove, update, repos, groups, excludes, gpg, cache, autoremove. Auto-detects `yum` (EL7) vs `dnf`; dnf-only flags skipped on legacy yum |
+| `bash.apt` | 🟢 Debian/Ubuntu | `ansible.builtin.apt` | Install, remove, upgrade, dist-upgrade, local `.deb` files, autoremove, purge, cache management, lock timeout |
 | `bash.dpkg` | 🟢 Debian/Ubuntu | `ansible.builtin.dpkg_selections` | Package selection state (`hold`/`install`/`deinstall`/`purge`) and `.deb` file install/remove |
 | `bash.deb822_repository` | 🟢 Debian/Ubuntu | `ansible.builtin.deb822_repository` | Manage deb822 `.sources` files in `/etc/apt/sources.list.d/`. Replaces legacy `apt_repository` |
 | `bash.rpm_key` | 🔴 RHEL/Fedora | `ansible.builtin.rpm_key` | Import and remove RPM GPG keys (`rpm --import`) |
@@ -180,9 +180,9 @@ All 25 modules have been verified on live systems (regression pass — see commi
 
 | Host | OS | Result |
 |------|----|--------|
-|| Red Hat family (EL9/EL10) | AlmaLinux / Rocky / RHEL | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
-|| Debian family (Debian 12+ / Ubuntu 22.04+) | Ubuntu / Debian | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
-|| RHEL / CentOS 7 (legacy `yum`) | yum-based hosts | `bash.yum` exercises the identical playbook path; dnf-only flags are skipped so the generated yum command is always valid |
+| Red Hat family (EL9/EL10) | AlmaLinux / Rocky / RHEL | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+| Debian family (Debian 12+ / Ubuntu 22.04+) | Ubuntu / Debian | all `bash.*` modules + 23 self-reverting playbooks `failed=0` |
+| RHEL / CentOS 7 (legacy `yum`) | yum-based hosts | `bash.yum` exercises the identical playbook path; dnf-only flags are skipped so the generated yum command is always valid |
 | Non-root (with passwordless sudo) | Both | All modules self-escalate via internal sudo. `failed=0` |
 
 Test playbooks skip gracefully on hosts missing the relevant tooling (e.g. `systemctl`, `iptables`, `firewall-cmd`, `tuned-adm`) and leave no artifacts (verified: no stray test user/group/unit/rule/binary).
